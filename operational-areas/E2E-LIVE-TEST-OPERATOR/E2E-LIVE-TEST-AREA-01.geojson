@@ -1,0 +1,55 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "E2E-LIVE-TEST-OPERATOR",
+    "site_id": "E2E-LIVE-TEST-AREA-01",
+    "metro_locality": "San Jose, CA",
+    "center_point": {
+      "type": "Point",
+      "coordinates": [
+        -121.935,
+        37.345
+      ]
+    },
+    "geographic_bounds": {
+      "south": 37.34,
+      "west": -121.94,
+      "north": 37.35,
+      "east": -121.93
+    },
+    "coordination_contact": {
+      "name": "E2E Live Test",
+      "email": "e2e-live-test@example.com",
+      "phone": "+1-555-010-9998"
+    },
+    "effective_from": "2026-09-18T00:00:00Z",
+    "effective_to": "2026-12-31T23:59:59Z"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -121.94,
+          37.34
+        ],
+        [
+          -121.93,
+          37.34
+        ],
+        [
+          -121.93,
+          37.35
+        ],
+        [
+          -121.94,
+          37.35
+        ],
+        [
+          -121.94,
+          37.34
+        ]
+      ]
+    ]
+  }
+}
