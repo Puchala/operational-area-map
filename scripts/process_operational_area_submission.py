@@ -338,6 +338,19 @@ def main():
     if status not in (200, 201):
         fail(f"Unable to create pull request: {pr}")
 
+    dispatch_payload = {
+        "event_type": "operational-area-submission",
+        "client_payload": {
+            "pr_number": pr["number"],
+            "head_sha": pr["head"]["sha"],
+            "head_ref": pr["head"]["ref"],
+            "issue_number": issue_number,
+        },
+    }
+    status, response = api("POST", f"/repos/{REPOSITORY}/dispatches", dispatch_payload)
+    if status != 204:
+        fail(f"Unable to trigger validation workflow for PR #{pr['number']}: {response}")
+
     comment(
         issue_number,
         (
