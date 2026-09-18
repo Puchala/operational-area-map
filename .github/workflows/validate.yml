@@ -116,4 +116,15 @@ jobs:
               throw new Error('GitHub did not merge the validated submission: ' + merge.data.message);
             }
 
+            const dispatch = await github.rest.repos.createDispatchEvent({
+              owner,
+              repo,
+              event_type: 'operational-area-published',
+              client_payload: {
+                pr_number: prNumber,
+                head_sha: latest.data.head.sha
+              }
+            });
+
             core.info('Merged validated operational-area submission PR #' + prNumber + '.');
+            core.info('Triggered map rebuild for the published operational area.');
