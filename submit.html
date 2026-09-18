@@ -71,8 +71,8 @@
       <div class="field"><span>Coordination Contact Name</span><input id="contactName" placeholder="Optional" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
       <div class="field"><span>Coordination Contact Email</span><input id="contactEmail" type="email" placeholder="ops@example.com" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
       <div class="field"><span>Coordination Contact Phone</span><input id="contactPhone" placeholder="+1-555-010-0000" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
-      <div class="field"><span>Effective From</span><input id="effectiveFrom" placeholder="2026-09-18T00:00:00Z" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
-      <div class="field"><span>Effective To</span><input id="effectiveTo" placeholder="2026-12-31T23:59:59Z" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Effective From</span><input id="effectiveFrom" type="date" aria-label="Effective From date" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></div>
+      <div class="field"><span>Effective To</span><input id="effectiveTo" type="date" aria-label="Effective To date" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></div>
       <div class="field" style="grid-column:1/-1;"><span>Generated GeoJSON Geometry</span><textarea id="submissionGeometry" readonly style="width:100%;min-height:140px;box-sizing:border-box;margin-top:8px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:#f8fafc;"></textarea></div>
     </div>
     <div style="margin-top:14px;display:grid;gap:10px;">
@@ -165,6 +165,17 @@
     createGithubSubmission.disabled = !ready;
     copySubmissionText.disabled = !ready;
   }
+
+  const effectiveFromInput = document.getElementById('effectiveFrom');
+  const effectiveToInput = document.getElementById('effectiveTo');
+
+  effectiveFromInput.addEventListener('change', () => {
+    effectiveToInput.min = effectiveFromInput.value || '';
+    if (effectiveToInput.value && effectiveFromInput.value && effectiveToInput.value < effectiveFromInput.value) {
+      effectiveToInput.value = effectiveFromInput.value;
+    }
+    updateSubmissionButtons();
+  });
 
   document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
   document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
