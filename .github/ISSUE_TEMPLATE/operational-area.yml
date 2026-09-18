@@ -1,5 +1,5 @@
 name: Operational Area Submission Form
-description: Submit an operational area for geographic overlap awareness.
+description: Submit an operational area for geographic overlap awareness and human review.
 title: "Operational Area: "
 body:
   - type: markdown
