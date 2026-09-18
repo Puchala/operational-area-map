@@ -1,0 +1,25 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "DEMO-DELTA",
+    "site_id": "AUS-NORTH-01",
+    "metro_locality": "Austin, TX",
+    "center_point": {
+      "latitude": 30.265,
+      "longitude": -97.73
+    },
+    "geographic_bounds": {
+      "south": 30.25,
+      "west": -97.75,
+      "north": 30.28,
+      "east": -97.71
+    },
+    "coordination_contact": "Morgan Patel | ops.delta@example.com | +1-555-010-1004",
+    "effective_from": "2026-09-18",
+    "effective_to": "2026-12-31"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[-97.75,30.28],[-97.71,30.28],[-97.71,30.25],[-97.75,30.25],[-97.75,30.28]]]
+  }
+}
