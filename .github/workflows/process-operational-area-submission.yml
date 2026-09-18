@@ -14,7 +14,8 @@ jobs:
     if: >-
       github.event.issue.state == 'open' &&
       contains(github.event.issue.body, '### Operator ID') &&
-      contains(github.event.issue.body, '### Operational Area Geometry')
+      contains(github.event.issue.body, '### Operational Area Geometry') &&
+      contains(github.event.issue.body, '<!-- OPERATIONAL-AREA-SUBMISSION -->')
     runs-on: ubuntu-latest
     steps:
       - name: Create operational-area file and draft PR
