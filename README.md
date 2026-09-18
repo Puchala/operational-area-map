@@ -2,10 +2,19 @@
 
 A GitHub-native proof of concept for publishing **minimum necessary UAS operational-area information** so operators can identify potential geographic overlap and determine when operational-practicality coordination may be needed.
 
-> **Status:** Technical Committee Proof of Concept  
-> **Format:** GeoJSON  
-> **Repository model:** GitHub + Pull Requests + GitHub Actions  
+> **Status:** Technical Committee Proof of Concept  \
+> **Format:** GeoJSON  \
+> **Repository model:** GitHub + Pull Requests + GitHub Actions  \
 > **Scope:** Awareness and information sharing — not operational approval or coordination authority
+
+## 🚀 Start here
+
+| Action | Link |
+|---|---|
+| 🗺️ **View the Shared Operational Area Map** | [Open the Map](https://puchala.github.io/operational-area-map/) |
+| ✏️ **Submit an Operational Area** | [Open the Submission Tool](https://puchala.github.io/operational-area-map/submit.html) |
+
+**Typical flow:** Draw your operational area → submit the minimum required information → GitHub Actions validates and processes the submission → the published area appears on the shared map.
 
 ## 🗺️ What this demonstrates
 
@@ -97,6 +106,10 @@ The two San Jose demonstration areas intentionally overlap so the automated over
 ### 🗺️ View the shared map
 
 The interactive map is published through GitHub Pages from the repository's `main` branch. It displays the published areas, potential-overlap status, effective dates, and the mock coordination contact information.
+
+**[Open the Shared Operational Area Map →](https://puchala.github.io/operational-area-map/)**
+
+**[Submit an Operational Area →](https://puchala.github.io/operational-area-map/submit.html)**
 
 ## Minimum information
 
