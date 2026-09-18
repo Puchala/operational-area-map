@@ -51,9 +51,39 @@ jobs:
 
             function stripCodeFence(value) {
               return clean(value)
-                .replace(/^```(?:json)?\s*/i, '')
-                .replace(/\s*```$/i, '')
+                .replace(/^\`\`\`(?:json)?\s*/i, '')
+                .replace(/\s*\`\`\`$/i, '')
                 .trim();
+            }
+
+            function stableNormalize(value) {
+              if (Array.isArray(value)) return value.map(stableNormalize);
+              if (value && typeof value === 'object') {
+                return Object.fromEntries(
+                  Object.keys(value).sort().map(key => [key, stableNormalize(value[key])])
+                );
+              }
+              return value;
+            }
+
+            function sameJson(a, b) {
+              return JSON.stringify(stableNormalize(a)) === JSON.stringify(stableNormalize(b));
+            }
+
+            async function closeIssue(bodyText) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: bodyText
+              });
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                state: 'closed',
+                state_reason: 'completed'
+              });
             }
 
             const operatorId = clean(field('Operator ID', true));
@@ -69,36 +99,54 @@ jobs:
             const effectiveTo = clean(field('Effective To (optional)'));
 
             let geometry;
-            try { geometry = JSON.parse(geometryRaw); }
-            catch (e) { throw new Error('Operational Area Geometry is not valid JSON. Please use the drawing tool and paste its generated geometry.'); }
+            try {
+              geometry = JSON.parse(geometryRaw);
+            } catch (e) {
+              throw new Error('Operational Area Geometry is not valid JSON. Please use the drawing tool and paste its generated geometry.');
+            }
+
             if (!geometry || !['Polygon', 'MultiPolygon'].includes(geometry.type) || !Array.isArray(geometry.coordinates)) {
               throw new Error('Geometry must be a GeoJSON Polygon or MultiPolygon.');
             }
 
             let bounds;
             if (boundsRaw) {
-              try { bounds = JSON.parse(boundsRaw); }
-              catch (e) { throw new Error('Geographic Bounds must be valid JSON.'); }
+              try {
+                bounds = JSON.parse(boundsRaw);
+              } catch (e) {
+                throw new Error('Geographic Bounds must be valid JSON.');
+              }
             }
 
             const centerPoint = centerRaw ? (() => {
               const parts = centerRaw.split(',').map(x => Number(x.trim()));
-              if (parts.length !== 2 || parts.some(Number.isNaN)) throw new Error('Center Point must be latitude,longitude.');
+              if (parts.length !== 2 || parts.some(Number.isNaN)) {
+                throw new Error('Center Point must be latitude,longitude.');
+              }
               return { latitude: parts[0], longitude: parts[1] };
             })() : undefined;
 
-            const safe = value => value.replace(/[^A-Za-z0-9._-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+            const safe = value =>
+              value.replace(/[^A-Za-z0-9._-]/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '')
+                .slice(0, 80);
+
             const safeOperator = safe(operatorId);
             const safeSite = safe(siteId);
-            if (!safeOperator || !safeSite) throw new Error('Operator ID and Site / Area ID must contain usable filename characters.');
+            if (!safeOperator || !safeSite) {
+              throw new Error('Operator ID and Site / Area ID must contain usable filename characters.');
+            }
 
             const properties = {
               operator_id: operatorId,
               site_id: siteId,
               metro_locality: metro
             };
+
             if (centerPoint) properties.center_point = centerPoint;
             if (bounds) properties.geographic_bounds = bounds;
+
             if (contactName || contactEmail || contactPhone) {
               const contactParts = [];
               if (contactName) contactParts.push(contactName);
@@ -106,25 +154,109 @@ jobs:
               if (contactPhone) contactParts.push(contactPhone);
               properties.coordination_contact = contactParts.join(' | ');
             }
+
             if (effectiveFrom) properties.effective_from = effectiveFrom;
             if (effectiveTo) properties.effective_to = effectiveTo;
 
-            const feature = { type: 'Feature', properties, geometry };
+            const feature = {
+              type: 'Feature',
+              properties,
+              geometry
+            };
+
             const path = `operational-areas/${safeOperator}/${safeSite}.geojson`;
             const branch = `submission/issue-${issueNumber}`;
             const { owner, repo } = context.repo;
-            const mainRef = await github.rest.git.getRef({ owner, repo, ref: 'heads/main' });
+
+            // First check main. This prevents a duplicate submission from
+            // creating another PR after the same area is already published.
+            let existingMain = null;
+            try {
+              existingMain = await github.rest.repos.getContent({
+                owner,
+                repo,
+                path,
+                ref: 'main'
+              });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+
+            if (existingMain && !Array.isArray(existingMain.data)) {
+              const existingText = Buffer.from(existingMain.data.content, 'base64').toString('utf8');
+              let existingFeature;
+              try {
+                existingFeature = JSON.parse(existingText);
+              } catch (e) {
+                throw new Error(`Existing operational-area file ${path} is not valid JSON.`);
+              }
+
+              if (sameJson(feature, existingFeature)) {
+                await closeIssue(
+                  `ℹ️ This operational area is already published at \`\\${path}\`. No new Pull Request was created because the submitted data matches the existing published area.\n\n` +
+                  `Published source: https://github.com/${owner}/${repo}/blob/main/${path}`
+                );
+                core.info(`Duplicate submission detected for ${path}; no PR created.`);
+                return;
+              }
+            }
+
+            // Prevent concurrent submissions for the same area from creating
+            // multiple open PRs. If another open PR already changes this path,
+            // point the new issue to that PR instead.
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'open',
+              base: 'main',
+              per_page: 100
+            });
+
+            for (const openPr of openPulls) {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner,
+                repo,
+                pull_number: openPr.number,
+                per_page: 100
+              });
+
+              if (files.some(file => file.filename === path)) {
+                await closeIssue(
+                  `ℹ️ An open Pull Request already exists for this operational area: PR #${openPr.number}. No second Pull Request was created.\n\n` +
+                  `Existing PR: ${openPr.html_url}`
+                );
+                core.info(`Open PR #${openPr.number} already changes ${path}; no new PR created.`);
+                return;
+              }
+            }
+
+            const mainRef = await github.rest.git.getRef({
+              owner,
+              repo,
+              ref: 'heads/main'
+            });
 
             try {
-              await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: mainRef.data.object.sha });
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${branch}`,
+                sha: mainRef.data.object.sha
+              });
             } catch (e) {
               if (e.status !== 422) throw e;
             }
 
             const content = JSON.stringify(feature, null, 2) + '\n';
-            let existing = null;
+
+            let existingOnBranch = null;
             try {
-              existing = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
+              existingOnBranch = await github.rest.repos.getContent({
+                owner,
+                repo,
+                path,
+                ref: branch
+              });
             } catch (e) {
               if (e.status !== 404) throw e;
             }
@@ -133,27 +265,56 @@ jobs:
               owner,
               repo,
               path,
-              message: `Add operational area from submission #${issueNumber}`,
+              message: existingMain
+                ? `Update operational area from submission #${issueNumber}`
+                : `Add operational area from submission #${issueNumber}`,
               content: Buffer.from(content).toString('base64'),
               branch,
-              ...(existing ? { sha: existing.data.sha } : {})
+              ...(existingOnBranch ? { sha: existingOnBranch.data.sha } : {})
             });
 
             const pr = await github.rest.pulls.create({
               owner,
               repo,
-              title: `Publish operational area: ${operatorId} / ${siteId}`,
+              title: `${existingMain ? 'Update' : 'Publish'} operational area: ${operatorId} / ${siteId}`,
               head: branch,
               base: 'main',
               draft: false,
-              body: `## Automated operational-area submission\n\nThis PR was generated from [Issue #${issueNumber}](${issueUrl}).\n\n### Proposed area\n- **Operator:** \`${operatorId}\`\n- **Site / Area:** \`${siteId}\`\n- **Metro / Locality:** ${metro}\n- **Source:** Operator submission form\n\n### Review checklist\n- [ ] Geometry is correct and represents only the intended operational area.\n- [ ] Minimum-necessary information principle is satisfied.\n- [ ] No routes, trajectories, customer data, volumes, or sensitive strategy are included.\n- [ ] Contact information is appropriate for publication.\n- [ ] Effective dates are correct, if supplied.\n- [ ] Automated validation passes.\n- [ ] Potential overlap has been reviewed as an awareness signal only.\n\n**Publication is automatic when the required CI validation passes.**`
+              body: `## Automated operational-area submission
+
+This PR was generated from [Issue #${issueNumber}](${issueUrl}).
+
+### Proposed area
+- **Operator:** \`${operatorId}\`
+- **Site / Area:** \`${siteId}\`
+- **Metro / Locality:** ${metro}
+- **Source:** Operator submission form
+
+### Review checklist
+- [ ] Geometry is correct and represents only the intended operational area.
+- [ ] Minimum-necessary information principle is satisfied.
+- [ ] No routes, trajectories, customer data, volumes, or sensitive strategy are included.
+- [ ] Contact information is appropriate for publication.
+- [ ] Effective dates are correct, if supplied.
+- [ ] Automated validation passes.
+- [ ] Potential overlap has been reviewed as an awareness signal only.
+
+**Publication is automatic when the required CI validation passes.**`
             });
 
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: issueNumber,
-              body: `✅ Submission processed. Pull Request #${pr.data.number} was created. The area will be published automatically when the required CI validation passes.`
+              body: `✅ Submission processed. Pull Request #${pr.data.number} was created. The area will be published automatically when the required CI validation passes.\n\nPR: ${pr.data.html_url}`
             });
-            await github.rest.issues.update({ owner, repo, issue_number: issueNumber, state: 'closed', state_reason: 'completed' });
-            core.info(`Created draft PR #${pr.data.number}: ${pr.data.html_url}`);
+
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              state: 'closed',
+              state_reason: 'completed'
+            });
+
+            core.info(`Created PR #${pr.data.number}: ${pr.data.html_url}`);
