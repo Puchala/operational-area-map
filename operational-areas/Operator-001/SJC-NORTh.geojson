@@ -1,0 +1,46 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "Operator-001",
+    "site_id": "SJC-NORTh",
+    "metro_locality": "Bay area",
+    "center_point": {
+      "latitude": 37.352114,
+      "longitude": -122.021027
+    },
+    "geographic_bounds": {
+      "south": 37.281702,
+      "west": -122.161102,
+      "north": 37.422526,
+      "east": -121.880951
+    },
+    "coordination_contact": "555-111-2345"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -122.141876,
+          37.410528
+        ],
+        [
+          -121.880951,
+          37.3385
+        ],
+        [
+          -122.038879,
+          37.281702
+        ],
+        [
+          -122.161102,
+          37.422526
+        ],
+        [
+          -122.141876,
+          37.410528
+        ]
+      ]
+    ]
+  }
+}
