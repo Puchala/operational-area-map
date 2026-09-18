@@ -1,7 +1,11 @@
 name: Validate Operational Areas
 
 on:
-  pull_request:
+  # Use pull_request_target for repository-generated submission branches so
+  # validation can run automatically on PRs created by the submission bot.
+  # The job is restricted to github-actions-created PRs and uses the PR head
+  # only as data input; the workflow itself always comes from main.
+  pull_request_target:
     paths:
       - "operational-areas/**/*.geojson"
       - "schema/**"
@@ -21,10 +25,13 @@ permissions:
 
 jobs:
   validate:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
