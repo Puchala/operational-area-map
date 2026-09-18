@@ -51,8 +51,8 @@ jobs:
 
             function stripCodeFence(value) {
               return clean(value)
-                .replace(/^\`\`\`(?:json)?\s*/i, '')
-                .replace(/\s*\`\`\`$/i, '')
+                .replace(/^\x60\x60\x60(?:json)?\s*/i, '')
+                .replace(/\s*\x60\x60\x60$/i, '')
                 .trim();
             }
 
@@ -69,6 +69,8 @@ jobs:
             function sameJson(a, b) {
               return JSON.stringify(stableNormalize(a)) === JSON.stringify(stableNormalize(b));
             }
+
+            const { owner, repo } = context.repo;
 
             async function closeIssue(bodyText) {
               await github.rest.issues.createComment({
@@ -166,7 +168,6 @@ jobs:
 
             const path = `operational-areas/${safeOperator}/${safeSite}.geojson`;
             const branch = `submission/issue-${issueNumber}`;
-            const { owner, repo } = context.repo;
 
             // First check main. This prevents a duplicate submission from
             // creating another PR after the same area is already published.
@@ -193,7 +194,7 @@ jobs:
 
               if (sameJson(feature, existingFeature)) {
                 await closeIssue(
-                  `ℹ️ This operational area is already published at \`\\${path}\`. No new Pull Request was created because the submitted data matches the existing published area.\n\n` +
+                  `ℹ️ This operational area is already published at ${path}. No new Pull Request was created because the submitted data matches the existing published area.\n\n` +
                   `Published source: https://github.com/${owner}/${repo}/blob/main/${path}`
                 );
                 core.info(`Duplicate submission detected for ${path}; no PR created.`);
