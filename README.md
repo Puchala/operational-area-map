@@ -7,8 +7,6 @@ A GitHub-native proof of concept for publishing **minimum necessary UAS operatio
 > **Repository model:** GitHub + Pull Requests + GitHub Actions  
 > **Scope:** Awareness and information sharing — not operational approval or coordination authority
 
----
-
 ## 🗺️ What this demonstrates
 
 ```text
@@ -25,7 +23,7 @@ GitHub Pull Request
    └── Potential-overlap check
    │
    ▼
-Technical / Repository Review
+Repository Review
    │
    ▼
 Merge
@@ -34,26 +32,24 @@ Merge
 Shared Operational Area Map
 ```
 
-The repository keeps each operator's area in a separate GeoJSON file. GitHub Actions validates the submission and builds the shared map data.
+Each published area is stored as a separate GeoJSON file. GitHub Actions validates the data and builds the dataset used by the interactive GitHub Pages map.
 
----
+## Published demo operational areas
 
-## Published Operational Areas
+The repository currently contains **four fictional demonstration areas** with mock contact information. The data is intentionally illustrative and does not represent real operators, operations, or contact details.
 
-| Operator | Site | Metro / Locality | Area | Potential Overlap |
-|---|---|---|---|---|
-| `OPERATOR-001` | `SITE-001` | Philadelphia | Area A | 🟠 Yes |
-| `OPERATOR-002` | `SITE-002` | Philadelphia | Area B | 🟠 Yes |
+| Operator | Site / Area | Metro / Locality | Potential overlap |
+|---|---|---|---|
+| `DEMO-ALPHA` | `SJC-NORTH-01` | San Jose, CA | 🟠 With DEMO-BRAVO |
+| `DEMO-BRAVO` | `SJC-SOUTH-01` | San Jose, CA | 🟠 With DEMO-ALPHA |
+| `DEMO-CHARLIE` | `MTV-EAST-01` | Mountain View, CA | 🔵 None detected |
+| `DEMO-DELTA` | `AUS-NORTH-01` | Austin, TX | 🔵 None detected |
 
-The examples are fictional and exist only to demonstrate the workflow.
+The two San Jose demonstration areas intentionally overlap so the automated overlap visualization can be exercised. The Mountain View and Austin areas provide non-overlapping examples.
 
 ### 🗺️ View the shared map
 
-After enabling GitHub Pages, the interactive map will be available from:
-
-`https://<OWNER>.github.io/<REPOSITORY>/`
-
----
+The interactive map is published through GitHub Pages from the repository's `main` branch. It displays the published areas, potential-overlap status, effective dates, and the mock coordination contact information.
 
 ## Minimum information
 
@@ -61,14 +57,14 @@ The POC intentionally limits the published information to what is useful for ove
 
 | Field | Required | Purpose |
 |---|---:|---|
-| Operator ID | Yes | Identifies the operator |
+| Operator ID | Yes | Identifies the publishing operator |
 | Site / Area ID | Yes | Identifies the published area |
 | Metro / Locality | Yes | Provides human-readable geographic context |
 | Operational Area Geometry | Yes | Shows the geographic area |
 | Center Point | Optional | Useful for quick geographic reference |
-| Geographic Bounds | Optional | Useful for simple discovery/filtering |
-| Coordination Contact | Optional | Allows operators to initiate coordination |
-| Time Information | Optional | Can be added if the committee determines it is needed |
+| Geographic Bounds | Optional | Useful for discovery/filtering |
+| Coordination Contact | Optional | Allows operators to initiate follow-up |
+| Time Information | Optional | Indicates the effective period when provided |
 
 ## 🔒 Information intentionally not published
 
@@ -83,44 +79,40 @@ This mechanism is **not intended** to publish:
 
 The objective is to share the **minimum information necessary for awareness of potential geographic overlap**.
 
----
-
 ## Repository structure
 
 ```text
 operational-area-map/
 │
 ├── operational-areas/
-│   ├── OPERATOR-001/
-│   │   └── SITE-001.geojson
-│   └── OPERATOR-002/
-│       └── SITE-002.geojson
+│   ├── DEMO-ALPHA/
+│   │   └── SJC-NORTH-01.geojson
+│   ├── DEMO-BRAVO/
+│   │   └── SJC-SOUTH-01.geojson
+│   ├── DEMO-CHARLIE/
+│   │   └── MTV-EAST-01.geojson
+│   └── DEMO-DELTA/
+│       └── AUS-NORTH-01.geojson
 │
 ├── schema/
 │   └── operational-area.schema.json
 │
-├── map/
-│   └── operational-areas.geojson
-│
 ├── scripts/
 │   ├── validate.py
-│   └── check_overlap.py
+│   ├── check_overlap.py
+│   └── build_map_data.py
 │
 ├── docs/
 │   ├── architecture.md
 │   ├── data-model.md
 │   └── operator-guide.md
 │
+├── index.html
 └── .github/
-    ├── ISSUE_TEMPLATE/
-    │   └── publish-operational-area.yml
     └── workflows/
         ├── validate.yml
-        ├── overlap-check.yml
         └── build-map.yml
 ```
-
----
 
 ## How publication works
 
@@ -128,24 +120,17 @@ operational-area-map/
 
 The operator provides a GeoJSON `Feature` containing the minimum required metadata and polygon geometry.
 
-### 2. Operator submits a GitHub request
+### 2. Operator submits a change
 
-The repository provides a **Publish Operational Area** Issue Form.
+The operational-area file is proposed through the repository's normal Git workflow and pull-request review process.
 
 ### 3. Validation runs
 
-GitHub Actions checks:
-
-- GeoJSON structure
-- Required fields
-- Geometry type
-- Geometry validity
-- Allowed metadata
-- Operator/site naming conventions
+GitHub Actions checks the operational-area files against the schema and validates geometry-related requirements.
 
 ### 4. Potential overlap is checked
 
-The automation compares published geometries and identifies geographic intersections.
+The map-build process compares published geometries and identifies geographic intersections.
 
 **Important:** an intersection is reported as **potential geographic overlap**. It does not mean that coordination is automatically required.
 
@@ -155,26 +140,7 @@ A maintainer reviews the proposed change and merges the pull request when approp
 
 ### 6. Shared map is updated
 
-The published GeoJSON files are aggregated into the shared map dataset.
-
----
-
-## Quick test
-
-The repository contains two fictional areas that overlap.
-
-You can test the POC by:
-
-1. Creating a branch.
-2. Editing `operational-areas/OPERATOR-001/SITE-001.geojson`.
-3. Changing its polygon.
-4. Opening a pull request.
-5. Watching the validation workflow run.
-6. Reviewing the overlap result.
-7. Merging the change.
-8. Opening the GitHub Pages map.
-
----
+GitHub Actions aggregates the operational-area files into the GeoJSON dataset used by the GitHub Pages map.
 
 ## Design principles
 
@@ -191,12 +157,10 @@ Changes are version-controlled, reviewable, auditable, and reversible.
 GeoJSON provides a standard geographic interchange format.
 
 ### Human-readable
-The repository README and map provide a simple way to understand published areas.
+The README and interactive map provide a simple way to understand published areas and initiate follow-up using the published contact information.
 
 ### Non-authoritative awareness
 The map indicates potential geographic overlap. It does not determine whether a particular operation may proceed or whether coordination is required.
-
----
 
 ## POC scope
 
@@ -211,5 +175,3 @@ It is **not** intended to define:
 - operational approval
 - coordination procedures
 - security/privacy requirements for a production system
-
-Those items can be addressed after the committee agrees on the basic mechanism and minimum information set.
