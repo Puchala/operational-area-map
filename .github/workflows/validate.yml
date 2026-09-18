@@ -6,6 +6,7 @@ on:
   # The job is restricted to github-actions-created PRs and uses the PR head
   # only as data input; the workflow itself always comes from main.
   pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "operational-areas/**/*.geojson"
       - "schema/**"
