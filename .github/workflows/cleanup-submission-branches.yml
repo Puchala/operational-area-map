@@ -1,0 +1,85 @@
+name: Clean Up Submission Branches
+
+on:
+  pull_request_target:
+    types: [closed]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        startsWith(github.event.pull_request.head.ref, 'submission/issue-') &&
+        github.event.pull_request.merged == true
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean up merged submission branches
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const event = context.eventName;
+            const branchesToClean = new Set();
+
+            if (event === 'pull_request_target') {
+              branchesToClean.add(context.payload.pull_request.head.ref);
+            } else {
+              // One-time cleanup for the existing POC branches.
+              const page = await github.paginate(github.rest.repos.listBranches, {
+                owner,
+                repo,
+                per_page: 100
+              });
+
+              for (const branch of page) {
+                if (branch.name.startsWith('submission/issue-')) {
+                  branchesToClean.add(branch.name);
+                }
+              }
+
+              // This development branch is superseded by main and has no open PR.
+              branchesToClean.add('feature/operator-submission-workflow');
+            }
+
+            for (const branch of branchesToClean) {
+              if (branch === 'main') continue;
+
+              const openPrs = await github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${owner}:${branch}`,
+                state: 'open',
+                per_page: 100
+              });
+
+              if (openPrs.data.length > 0) {
+                core.info(`Keeping ${branch}: it still has an open PR.`);
+                continue;
+              }
+
+              try {
+                await github.rest.git.deleteRef({
+                  owner,
+                  repo,
+                  ref: `heads/${branch}`
+                });
+                core.info(`Deleted branch ${branch}.`);
+              } catch (error) {
+                if (error.status === 422 || error.status === 404) {
+                  core.info(`Branch ${branch} is already gone.`);
+                } else {
+                  throw error;
+                }
+              }
+            }
