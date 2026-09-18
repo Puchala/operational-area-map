@@ -1,0 +1,77 @@
+name: Auto Merge Validated Operational Areas
+
+on:
+  workflow_run:
+    workflows: ["Validate Operational Areas"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge validated submission PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const run = context.payload.workflow_run;
+            const branch = run.head_branch;
+            const sha = run.head_sha;
+
+            if (!branch || !branch.startsWith('submission/issue-')) {
+              core.info('Not a submission branch; nothing to merge.');
+              return;
+            }
+
+            const pulls = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              base: 'main',
+              head: `${owner}:${branch}`
+            });
+
+            const pr = pulls.data.find(p => p.head.sha === sha && p.user.login === 'github-actions[bot]');
+            if (!pr) {
+              core.info(`No matching bot-created PR found for ${branch}@${sha}; nothing to merge.`);
+              return;
+            }
+
+            if (pr.draft) {
+              throw new Error(`PR #${pr.number} is still a draft; refusing to merge.`);
+            }
+
+            core.info(`CI validation succeeded for PR #${pr.number} at ${sha}. Merging.`);
+
+            const merge = await github.rest.pulls.merge({
+              owner,
+              repo,
+              pull_number: pr.number,
+              merge_method: 'squash',
+              commit_title: pr.title,
+              commit_message: `Automatically merged after successful CI validation (workflow run ${run.id}).`,
+              sha
+            });
+
+            if (!merge.data.merged) {
+              throw new Error(`GitHub did not merge PR #${pr.number}: ${merge.data.message}`);
+            }
+
+            try {
+              await github.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: `heads/${branch}`
+              });
+              core.info(`Deleted merged submission branch ${branch}.`);
+            } catch (e) {
+              core.warning(`Unable to delete branch ${branch}: ${e.message}`);
+            }
+
+            core.info(`Merged PR #${pr.number} as ${merge.data.sha}.`);
