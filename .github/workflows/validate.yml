@@ -19,6 +19,8 @@ on:
       - "schema/**"
       - "scripts/validate.py"
       - ".github/workflows/validate.yml"
+  repository_dispatch:
+    types: [operational-area-submission]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +35,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.event_name == 'repository_dispatch' && github.event.client_payload.head_sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -50,10 +52,13 @@ jobs:
   auto-merge-submission:
     needs: validate
     if: >-
-      github.event_name == 'pull_request_target' &&
+      (github.event_name == 'pull_request_target' &&
       github.event.pull_request.user.login == 'github-actions[bot]' &&
       startsWith(github.event.pull_request.head.ref, 'submission/issue-') &&
-      github.event.pull_request.base.ref == 'main'
+      github.event.pull_request.base.ref == 'main') ||
+      (github.event_name == 'repository_dispatch' &&
+      startsWith(github.event.client_payload.head_ref, 'submission/issue-') &&
+      github.event.client_payload.pr_number)
     runs-on: ubuntu-latest
     steps:
       - name: Merge validated submission
@@ -62,12 +67,18 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const pr = context.payload.pull_request;
+            const isDispatch = context.eventName === 'repository_dispatch';
+            const prNumber = isDispatch
+              ? Number(context.payload.client_payload.pr_number)
+              : context.payload.pull_request.number;
+            const expectedHeadSha = isDispatch
+              ? context.payload.client_payload.head_sha
+              : context.payload.pull_request.head.sha;
 
             const latest = await github.rest.pulls.get({
               owner,
               repo,
-              pull_number: pr.number
+              pull_number: prNumber
             });
 
             if (latest.data.draft) {
@@ -79,14 +90,22 @@ jobs:
               return;
             }
 
-            if (latest.data.head.sha !== pr.head.sha) {
+            if (latest.data.base.ref !== 'main') {
+              throw new Error('Refusing to merge because the PR base is not main.');
+            }
+
+            if (!latest.data.head.ref.startsWith('submission/issue-')) {
+              throw new Error('Refusing to merge because the PR is not a submission branch.');
+            }
+
+            if (latest.data.head.sha !== expectedHeadSha) {
               throw new Error('PR head changed after validation started; refusing to merge stale validation.');
             }
 
             const merge = await github.rest.pulls.merge({
               owner,
               repo,
-              pull_number: pr.number,
+              pull_number: prNumber,
               merge_method: 'squash',
               commit_title: latest.data.title,
               commit_message: 'Automatically merged after successful CI validation.',
@@ -97,4 +116,4 @@ jobs:
               throw new Error('GitHub did not merge the validated submission: ' + merge.data.message);
             }
 
-            core.info('Merged validated operational-area submission PR #' + pr.number + '.');
+            core.info('Merged validated operational-area submission PR #' + prNumber + '.');
