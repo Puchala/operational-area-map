@@ -201,17 +201,3 @@ The submission workflow produces a draft PR. Automated processing does not itsel
 
 ### Non-authoritative awareness
 The map indicates potential geographic overlap. It does not determine whether a particular operation may proceed or whether coordination is required.
-
-## POC scope
-
-This repository is intended to demonstrate the proposed mechanism to the Technical Committee.
-
-It is **not** intended to define:
-
-- final governance
-- final publication policy
-- final schema
-- authorization to operate
-- operational approval
-- coordination procedures
-- security/privacy requirements for a production system
