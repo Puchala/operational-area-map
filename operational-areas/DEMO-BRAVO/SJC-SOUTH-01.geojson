@@ -1,0 +1,25 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "DEMO-BRAVO",
+    "site_id": "SJC-SOUTH-01",
+    "metro_locality": "San Jose, CA",
+    "center_point": {
+      "latitude": 37.3425,
+      "longitude": -121.905
+    },
+    "geographic_bounds": {
+      "south": 37.325,
+      "west": -121.92,
+      "north": 37.36,
+      "east": -121.89
+    },
+    "coordination_contact": "Jordan Lee | ops.bravo@example.com | +1-555-010-1002",
+    "effective_from": "2026-09-18",
+    "effective_to": "2026-12-31"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[-121.92,37.36],[-121.89,37.36],[-121.89,37.325],[-121.92,37.325],[-121.92,37.36]]]
+  }
+}
