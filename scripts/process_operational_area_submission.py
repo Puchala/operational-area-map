@@ -54,8 +54,13 @@ def clean(value):
 
 def strip_code_fence(value):
     value = clean(value)
-    value = re.sub(r"^\\x60\\x60\\x60(?:json)?\\s*", "", value, flags=re.I)
-    value = re.sub(r"\\s*\\x60\\x60\\x60$", "", value)
+    fence = chr(96) * 3
+    if value.startswith(fence):
+        value = value[len(fence):].lstrip()
+        if value.lower().startswith("json"):
+            value = value[4:].lstrip()
+        if value.endswith(fence):
+            value = value[:-len(fence)].rstrip()
     return value.strip()
 
 
