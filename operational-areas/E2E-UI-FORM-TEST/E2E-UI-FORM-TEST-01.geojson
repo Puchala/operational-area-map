@@ -1,0 +1,48 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "E2E-UI-FORM-TEST",
+    "site_id": "E2E-UI-FORM-TEST-01",
+    "metro_locality": "Modesto, CA",
+    "center_point": {
+      "latitude": 37.385,
+      "longitude": -121.47
+    },
+    "geographic_bounds": {
+      "south": 37.37,
+      "west": -121.5,
+      "north": 37.4,
+      "east": -121.44
+    },
+    "coordination_contact": "E2E Test Contact | ops@example.com | +1-555-010-0099",
+    "effective_from": "2026-09-18T00:00:00Z",
+    "effective_to": "2026-09-20T00:00:00Z"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -121.5,
+          37.37
+        ],
+        [
+          -121.44,
+          37.37
+        ],
+        [
+          -121.44,
+          37.4
+        ],
+        [
+          -121.5,
+          37.4
+        ],
+        [
+          -121.5,
+          37.37
+        ]
+      ]
+    ]
+  }
+}
