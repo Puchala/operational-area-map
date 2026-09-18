@@ -1,0 +1,25 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "DEMO-ALPHA",
+    "site_id": "SJC-NORTH-01",
+    "metro_locality": "San Jose, CA",
+    "center_point": {
+      "latitude": 37.355,
+      "longitude": -121.915
+    },
+    "geographic_bounds": {
+      "south": 37.34,
+      "west": -121.93,
+      "north": 37.37,
+      "east": -121.90
+    },
+    "coordination_contact": "Alex Morgan | ops.alpha@example.com | +1-555-010-1001",
+    "effective_from": "2026-09-18",
+    "effective_to": "2026-12-31"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[-121.93,37.37],[-121.90,37.37],[-121.90,37.34],[-121.93,37.34],[-121.93,37.37]]]
+  }
+}
