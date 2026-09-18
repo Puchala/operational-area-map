@@ -19,6 +19,9 @@ jobs:
       contains(github.event.issue.body, '<!-- OPERATIONAL-AREA-SUBMISSION -->')
     runs-on: ubuntu-latest
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Process operational-area submission
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
