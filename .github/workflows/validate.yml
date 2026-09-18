@@ -1,0 +1,38 @@
+name: Validate Operational Areas
+
+on:
+  pull_request:
+    paths:
+      - "operational-areas/**/*.geojson"
+      - "schema/**"
+      - "scripts/validate.py"
+      - ".github/workflows/validate.yml"
+  push:
+    branches: [main]
+    paths:
+      - "operational-areas/**/*.geojson"
+      - "schema/**"
+      - "scripts/validate.py"
+      - ".github/workflows/validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install jsonschema shapely
+
+      - name: Validate operational areas
+        run: python scripts/validate.py
