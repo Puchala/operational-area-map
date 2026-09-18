@@ -1,0 +1,45 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "Operator-2",
+    "site_id": "SFO",
+    "metro_locality": "SFo",
+    "center_point": {
+      "latitude": 38.281286,
+      "longitude": -122.152176
+    },
+    "geographic_bounds": {
+      "south": 38.218762,
+      "west": -122.362976,
+      "north": 38.34381,
+      "east": -121.941376
+    }
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -122.362976,
+          38.218762
+        ],
+        [
+          -122.362976,
+          38.34381
+        ],
+        [
+          -121.941376,
+          38.34381
+        ],
+        [
+          -121.941376,
+          38.218762
+        ],
+        [
+          -122.362976,
+          38.218762
+        ]
+      ]
+    ]
+  }
+}
