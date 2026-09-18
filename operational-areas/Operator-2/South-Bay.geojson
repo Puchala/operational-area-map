@@ -1,0 +1,47 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "Operator 2",
+    "site_id": "South Bay",
+    "metro_locality": "SFO",
+    "center_point": {
+      "latitude": 37.333481,
+      "longitude": -121.967812
+    },
+    "geographic_bounds": {
+      "south": 37.207363,
+      "west": -122.217407,
+      "north": 37.459598,
+      "east": -121.718216
+    },
+    "effective_from": "2026-09-18",
+    "effective_to": "2026-10-01"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -122.217407,
+          37.207363
+        ],
+        [
+          -122.217407,
+          37.459598
+        ],
+        [
+          -121.718216,
+          37.459598
+        ],
+        [
+          -121.718216,
+          37.207363
+        ],
+        [
+          -122.217407,
+          37.207363
+        ]
+      ]
+    ]
+  }
+}
