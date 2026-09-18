@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Submit Operational Area | Shared UAS Airspace Awareness</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" crossorigin="">
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f6f8fb; }
+    body { margin: 0; }
+    header { background: #0f172a; color: white; padding: 22px 24px; }
+    header .wrap, main { max-width: 1180px; margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 26px; }
+    header p { margin: 0; color: #cbd5e1; }
+    main { padding: 24px; }
+    .card { background: white; border: 1px solid #dbe2ea; border-radius: 14px; box-shadow: 0 4px 18px rgba(15,23,42,.06); padding: 20px; margin-bottom: 18px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .step { padding: 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+    .step strong { display: block; margin-bottom: 4px; }
+    #map { height: 540px; border-radius: 10px; border: 1px solid #dbe2ea; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    button, a.button { border: 0; border-radius: 9px; padding: 11px 16px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 14px; }
+    button.primary, a.button.primary { background: #0f172a; color: white; }
+    button.secondary { background: #e2e8f0; color: #172033; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    textarea { width: 100%; min-height: 180px; box-sizing: border-box; margin-top: 12px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 9px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+    .field { background: #f8fafc; padding: 12px; border-radius: 9px; border: 1px solid #e2e8f0; }
+    .field span { display: block; color: #64748b; font-size: 12px; margin-bottom: 4px; }
+    .notice { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 12px 14px; border-radius: 8px; }
+    @media (max-width: 720px) { .steps, .meta { grid-template-columns: 1fr; } main { padding: 14px; } #map { height: 460px; } }
+  </style>
+</head>
+<body>
+<header><div class="wrap"><h1>Operational Area Drawing Tool</h1><p>Draw the minimum geographic area needed for overlap awareness. No flight routes or trajectories are required.</p></div></header>
+<main>
+  <section class="card">
+    <div class="steps">
+      <div class="step"><strong>1. Draw</strong>Use the polygon tool to outline the operational area.</div>
+      <div class="step"><strong>2. Review</strong>Check the shape and the displayed bounds before submitting.</div>
+      <div class="step"><strong>3. Copy</strong>Copy the generated geometry into the GitHub submission form.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div id="map" aria-label="Operational area drawing map"></div>
+    <div class="actions">
+      <button id="copy" class="primary" disabled>Copy GeoJSON Geometry</button>
+      <button id="download" class="secondary" disabled>Download Geometry</button>
+      <a class="button primary" href="https://github.com/Puchala/operational-area-map/issues/new?template=operational-area.yml">Open Submission Form</a>
+    </div>
+    <div class="meta" aria-live="polite">
+      <div class="field"><span>Center Point</span><strong id="center">Draw an area to calculate</strong></div>
+      <div class="field"><span>Geographic Bounds</span><strong id="bounds">Draw an area to calculate</strong></div>
+    </div>
+    <textarea id="output" readonly aria-label="Generated GeoJSON geometry" placeholder="Your generated Polygon or MultiPolygon geometry will appear here."></textarea>
+  </section>
+
+  <section class="card">
+    <div class="notice"><strong>Information boundary:</strong> publish only the minimum information needed for geographic overlap awareness. Do not include routes, trajectories, customers, flight volumes, detailed operational strategies, or other commercially sensitive information.</div>
+  </section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js" crossorigin=""></script>
+<script>
+  const map = L.map('map').setView([37.35, -121.91], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  const drawn = new L.FeatureGroup().addTo(map);
+  map.addControl(new L.Control.Draw({
+    edit: { featureGroup: drawn },
+    draw: { polygon: true, rectangle: true, polyline: false, circle: false, circlemarker: false, marker: false }
+  }));
+
+  const output = document.getElementById('output');
+  const copy = document.getElementById('copy');
+  const download = document.getElementById('download');
+  const center = document.getElementById('center');
+  const bounds = document.getElementById('bounds');
+
+  function refresh() {
+    const layers = drawn.getLayers();
+    if (!layers.length) {
+      output.value = ''; copy.disabled = true; download.disabled = true;
+      center.textContent = 'Draw an area to calculate'; bounds.textContent = 'Draw an area to calculate'; return;
+    }
+    const feature = layers[0].toGeoJSON();
+    const geometry = feature.geometry;
+    output.value = JSON.stringify(geometry, null, 2);
+    const b = layers[0].getBounds();
+    const c = b.getCenter();
+    center.textContent = `${c.lat.toFixed(6)},${c.lng.toFixed(6)}`;
+    bounds.textContent = `south ${b.getSouth().toFixed(6)}, west ${b.getWest().toFixed(6)}, north ${b.getNorth().toFixed(6)}, east ${b.getEast().toFixed(6)}`;
+    copy.disabled = false; download.disabled = false;
+  }
+
+  map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); refresh(); });
+  map.on(L.Draw.Event.EDITED, refresh);
+  map.on(L.Draw.Event.DELETED, refresh);
+
+  copy.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(output.value); copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1600); }
+    catch { output.select(); document.execCommand('copy'); copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1600); }
+  });
+
+  download.addEventListener('click', () => {
+    const blob = new Blob([output.value + '\n'], { type: 'application/geo+json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'operational-area-geometry.geojson'; a.click(); URL.revokeObjectURL(a.href);
+  });
+</script>
+</body>
+</html>
