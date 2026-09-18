@@ -58,6 +58,31 @@
     <p style="color:#64748b;font-size:13px;margin-bottom:0;">After clicking <strong>Open GitHub Submission Form</strong>, GitHub should open the structured Operational Area Submission form. The GitHub form is the publication request; submission creates a draft PR for validation and human review.</p>
   </section>
 
+
+  <section class="card" id="submission">
+    <h2>2. Submission details</h2>
+    <p style="color:#64748b;font-size:13px;">Complete the required fields below. Geometry, center point, and geographic bounds are generated automatically from the map.</p>
+    <div class="meta" style="margin-top:0;">
+      <div class="field"><span>Operator ID *</span><input id="operatorId" required placeholder="e.g. OPERATOR-001" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Site / Area ID *</span><input id="siteId" required placeholder="e.g. SJC-NORTH-01" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field" style="grid-column:1/-1;"><span>Metro / Locality *</span><input id="metroLocality" required placeholder="e.g. San Jose, CA" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Center Point</span><input id="centerPoint" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;"></div>
+      <div class="field"><span>Geographic Bounds</span><input id="geographicBounds" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;"></div>
+      <div class="field"><span>Coordination Contact Name</span><input id="contactName" placeholder="Optional" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Coordination Contact Email</span><input id="contactEmail" type="email" placeholder="ops@example.com" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Coordination Contact Phone</span><input id="contactPhone" placeholder="+1-555-010-0000" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Effective From</span><input id="effectiveFrom" placeholder="2026-09-18T00:00:00Z" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Effective To</span><input id="effectiveTo" placeholder="2026-12-31T23:59:59Z" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field" style="grid-column:1/-1;"><span>Generated GeoJSON Geometry</span><textarea id="submissionGeometry" readonly style="width:100%;min-height:140px;box-sizing:border-box;margin-top:8px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:#f8fafc;"></textarea></div>
+    </div>
+    <div style="margin-top:14px;display:grid;gap:10px;">
+      <label style="font-size:13px;font-weight:600;"><input id="minimumInfo" type="checkbox"> I confirm this contains only the minimum necessary information for geographic overlap awareness and no sensitive operational details.</label>
+      <label style="font-size:13px;font-weight:600;"><input id="authorized" type="checkbox"> I confirm I am authorized to publish this operational-area information on behalf of the operator.</label>
+    </div>
+    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Create GitHub Submission</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
+    <div id="submissionStatus" class="notice" style="display:none;margin-top:14px;"></div>
+  </section>
+
   <section class="card">
     <div class="notice"><strong>Information boundary:</strong> publish only the minimum information needed for geographic overlap awareness. Do not include routes, trajectories, customers, flight volumes, detailed operational strategies, or other commercially sensitive information.</div>
   </section>
@@ -78,6 +103,12 @@
   const download = document.getElementById('download');
   const center = document.getElementById('center');
   const bounds = document.getElementById('bounds');
+  const centerPointInput = document.getElementById('centerPoint');
+  const boundsInput = document.getElementById('geographicBounds');
+  const submissionGeometry = document.getElementById('submissionGeometry');
+  const createGithubSubmission = document.getElementById('createGithubSubmission');
+  const copySubmissionText = document.getElementById('copySubmissionText');
+  const submissionStatus = document.getElementById('submissionStatus');
 
   function refresh() {
     const layers = drawn.getLayers();
@@ -88,12 +119,68 @@
     const feature = layers[0].toGeoJSON();
     const geometry = feature.geometry;
     output.value = JSON.stringify(geometry, null, 2);
+    submissionGeometry.value = JSON.stringify(geometry, null, 2);
     const b = layers[0].getBounds();
     const c = b.getCenter();
-    center.textContent = `${c.lat.toFixed(6)},${c.lng.toFixed(6)}`;
-    bounds.textContent = `south ${b.getSouth().toFixed(6)}, west ${b.getWest().toFixed(6)}, north ${b.getNorth().toFixed(6)}, east ${b.getEast().toFixed(6)}`;
+    const centerText = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
+    const boundsText = 'south ' + b.getSouth().toFixed(6) + ', west ' + b.getWest().toFixed(6) + ', north ' + b.getNorth().toFixed(6) + ', east ' + b.getEast().toFixed(6);
+    center.textContent = centerText;
+    bounds.textContent = boundsText;
+    centerPointInput.value = centerText;
+    boundsInput.value = JSON.stringify({south:Number(b.getSouth().toFixed(6)),west:Number(b.getWest().toFixed(6)),north:Number(b.getNorth().toFixed(6)),east:Number(b.getEast().toFixed(6))});
     copy.disabled = false; download.disabled = false;
+    createGithubSubmission.disabled = false;
+    copySubmissionText.disabled = false;
   }
+
+
+  function buildSubmissionText() {
+    const operatorId = document.getElementById('operatorId').value.trim();
+    const siteId = document.getElementById('siteId').value.trim();
+    const metro = document.getElementById('metroLocality').value.trim();
+    const geometry = submissionGeometry.value.trim();
+    if (!operatorId || !siteId || !metro || !geometry) throw new Error('Complete the required fields and draw an operational area first.');
+    if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
+    const lines = [];
+    lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->','');
+    lines.push('### Operator ID', operatorId, '');
+    lines.push('### Site / Area ID', siteId, '');
+    lines.push('### Metro / Locality', metro, '');
+    lines.push('### Operational Area Geometry','```json',geometry,'```','');
+    lines.push('### Center Point (optional)', centerPointInput.value.trim(), '');
+    lines.push('### Geographic Bounds (optional)','```json',boundsInput.value.trim(),'```','');
+    lines.push('### Coordination Contact Name (optional)',document.getElementById('contactName').value.trim(),'');
+    lines.push('### Coordination Contact Email (optional)',document.getElementById('contactEmail').value.trim(),'');
+    lines.push('### Coordination Contact Phone (optional)',document.getElementById('contactPhone').value.trim(),'');
+    lines.push('### Effective From (optional)',document.getElementById('effectiveFrom').value.trim(),'');
+    lines.push('### Effective To (optional)',document.getElementById('effectiveTo').value.trim(),'');
+    lines.push('### Publication confirmation','- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.','- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
+    return lines.join('\n');
+  }
+
+  function updateSubmissionButtons() {
+    const ready = Boolean(document.getElementById('operatorId').value.trim() && document.getElementById('siteId').value.trim() && document.getElementById('metroLocality').value.trim() && submissionGeometry.value.trim() && document.getElementById('minimumInfo').checked && document.getElementById('authorized').checked);
+    createGithubSubmission.disabled = !ready;
+    copySubmissionText.disabled = !ready;
+  }
+
+  document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
+  document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
+  createGithubSubmission.addEventListener('click', () => {
+    try {
+      const body = buildSubmissionText();
+      const title = 'Operational Area: ' + document.getElementById('operatorId').value.trim() + ' / ' + document.getElementById('siteId').value.trim();
+      const url = 'https://github.com/Puchala/operational-area-map/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(body);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      submissionStatus.textContent = 'GitHub is open with the submission prefilled. Review it and click Create issue.';
+      submissionStatus.style.display = 'block';
+    } catch (e) { submissionStatus.textContent = e.message; submissionStatus.style.display = 'block'; }
+  });
+
+  copySubmissionText.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(buildSubmissionText()); submissionStatus.textContent = 'Submission text copied.'; submissionStatus.style.display = 'block'; }
+    catch (e) { submissionStatus.textContent = e.message; submissionStatus.style.display = 'block'; }
+  });
 
   map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); refresh(); });
   map.on(L.Draw.Event.EDITED, refresh);
