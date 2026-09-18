@@ -13,10 +13,13 @@ A GitHub-native proof of concept for publishing **minimum necessary UAS operatio
 Operator
    │
    ▼
-Publish Operational Area
+Operational Area Drawing Tool
    │
    ▼
-GitHub Pull Request
+Submission Form
+   │
+   ▼
+Automatic Draft Pull Request
    │
    ├── GeoJSON validation
    ├── Required-field validation
@@ -32,7 +35,51 @@ Merge
 Shared Operational Area Map
 ```
 
-Each published area is stored as a separate GeoJSON file. GitHub Actions validates the data and builds the dataset used by the interactive GitHub Pages map.
+The repository now supports an operator-friendly submission path: an operator draws an area in the browser, submits the minimum metadata through a GitHub Issue Form, and GitHub Actions converts the submission into a draft Pull Request. Publication still requires validation and human review.
+
+## Operator submission flow
+
+### 1. Draw the area
+
+Open the **Operational Area Drawing Tool** on the GitHub Pages site. Draw a polygon or rectangle, review it, and copy the generated GeoJSON geometry.
+
+The tool also calculates the center point and geographic bounds for convenience.
+
+### 2. Submit the minimum information
+
+Open the **Submit Operational Area** Issue Form and provide:
+
+- Operator ID
+- Site / Area ID
+- Metro / Locality
+- Generated Polygon / MultiPolygon geometry
+- Optional center point and geographic bounds
+- Optional coordination contact
+- Optional effective dates
+
+The form explicitly confirms that sensitive operational information should not be submitted.
+
+### 3. Automatic PR creation
+
+When the form is submitted, GitHub Actions:
+
+1. Parses the structured issue-form fields.
+2. Validates the submitted geometry type and JSON structure.
+3. Creates an isolated submission branch.
+4. Creates or updates the operator/site GeoJSON file.
+5. Opens a **draft Pull Request** with a standardized review checklist.
+6. Links the PR back to the originating submission issue.
+7. Closes the processed submission issue.
+
+### 4. Automated validation
+
+The normal Pull Request validation workflow runs against the generated file. The map-build workflow performs the potential-overlap analysis after publication to `main`.
+
+### 5. Human review and publication
+
+A maintainer reviews the geometry, minimum-information boundary, metadata, contact information, dates, and automated checks. The area is not published merely because the submission form was completed.
+
+After merge, GitHub Actions rebuilds the shared GeoJSON dataset and republishes the GitHub Pages map.
 
 ## Published demo operational areas
 
@@ -108,39 +155,16 @@ operational-area-map/
 │   └── operator-guide.md
 │
 ├── index.html
+├── submit.html
 └── .github/
+    ├── ISSUE_TEMPLATE/
+    │   └── operational-area.yml
+    ├── PULL_REQUEST_TEMPLATE.md
     └── workflows/
+        ├── process-operational-area-submission.yml
         ├── validate.yml
         └── build-map.yml
 ```
-
-## How publication works
-
-### 1. Operator prepares an operational area
-
-The operator provides a GeoJSON `Feature` containing the minimum required metadata and polygon geometry.
-
-### 2. Operator submits a change
-
-The operational-area file is proposed through the repository's normal Git workflow and pull-request review process.
-
-### 3. Validation runs
-
-GitHub Actions checks the operational-area files against the schema and validates geometry-related requirements.
-
-### 4. Potential overlap is checked
-
-The map-build process compares published geometries and identifies geographic intersections.
-
-**Important:** an intersection is reported as **potential geographic overlap**. It does not mean that coordination is automatically required.
-
-### 5. Repository review
-
-A maintainer reviews the proposed change and merges the pull request when appropriate.
-
-### 6. Shared map is updated
-
-GitHub Actions aggregates the operational-area files into the GeoJSON dataset used by the GitHub Pages map.
 
 ## Design principles
 
@@ -157,7 +181,10 @@ Changes are version-controlled, reviewable, auditable, and reversible.
 GeoJSON provides a standard geographic interchange format.
 
 ### Human-readable
-The README and interactive map provide a simple way to understand published areas and initiate follow-up using the published contact information.
+The README, drawing tool, submission form, and interactive map provide a simple operator experience without requiring operators to hand-author GeoJSON.
+
+### Safe-by-default publication
+The submission workflow produces a draft PR. Automated processing does not itself publish an operational area.
 
 ### Non-authoritative awareness
 The map indicates potential geographic overlap. It does not determine whether a particular operation may proceed or whether coordination is required.
