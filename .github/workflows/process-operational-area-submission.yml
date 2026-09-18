@@ -18,7 +18,7 @@ jobs:
       contains(github.event.issue.body, '<!-- OPERATIONAL-AREA-SUBMISSION -->')
     runs-on: ubuntu-latest
     steps:
-      - name: Create operational-area file and draft PR
+      - name: Create operational-area file and PR
         uses: actions/github-script@v7
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
@@ -145,15 +145,15 @@ jobs:
               title: `Publish operational area: ${operatorId} / ${siteId}`,
               head: branch,
               base: 'main',
-              draft: true,
-              body: `## Automated operational-area submission\n\nThis draft PR was generated from [Issue #${issueNumber}](${issueUrl}).\n\n### Proposed area\n- **Operator:** \`${operatorId}\`\n- **Site / Area:** \`${siteId}\`\n- **Metro / Locality:** ${metro}\n- **Source:** Operator submission form\n\n### Review checklist\n- [ ] Geometry is correct and represents only the intended operational area.\n- [ ] Minimum-necessary information principle is satisfied.\n- [ ] No routes, trajectories, customer data, volumes, or sensitive strategy are included.\n- [ ] Contact information is appropriate for publication.\n- [ ] Effective dates are correct, if supplied.\n- [ ] Automated validation passes.\n- [ ] Potential overlap has been reviewed as an awareness signal only.\n\n**Publication is not automatic. A maintainer must review and merge this PR.**`
+              draft: false,
+              body: `## Automated operational-area submission\n\nThis PR was generated from [Issue #${issueNumber}](${issueUrl}).\n\n### Proposed area\n- **Operator:** \`${operatorId}\`\n- **Site / Area:** \`${siteId}\`\n- **Metro / Locality:** ${metro}\n- **Source:** Operator submission form\n\n### Review checklist\n- [ ] Geometry is correct and represents only the intended operational area.\n- [ ] Minimum-necessary information principle is satisfied.\n- [ ] No routes, trajectories, customer data, volumes, or sensitive strategy are included.\n- [ ] Contact information is appropriate for publication.\n- [ ] Effective dates are correct, if supplied.\n- [ ] Automated validation passes.\n- [ ] Potential overlap has been reviewed as an awareness signal only.\n\n**Publication is automatic when the required CI validation passes.**`
             });
 
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: issueNumber,
-              body: `✅ Submission processed. A draft Pull Request has been created: #${pr.data.number}. The area will not be published until the PR passes validation and is reviewed/merged.`
+              body: `✅ Submission processed. Pull Request #${pr.data.number} was created. The area will be published automatically when the required CI validation passes.`
             });
             await github.rest.issues.update({ owner, repo, issue_number: issueNumber, state: 'closed', state_reason: 'completed' });
             core.info(`Created draft PR #${pr.data.number}: ${pr.data.html_url}`);
