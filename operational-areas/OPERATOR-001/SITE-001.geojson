@@ -1,0 +1,45 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "OPERATOR-001",
+    "site_id": "SITE-001",
+    "metro_locality": "Philadelphia",
+    "center_point": {
+      "latitude": 39.945,
+      "longitude": -75.16
+    },
+    "geographic_bounds": {
+      "south": 39.93,
+      "west": -75.18,
+      "north": 39.96,
+      "east": -75.14
+    }
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -75.18,
+          39.96
+        ],
+        [
+          -75.14,
+          39.96
+        ],
+        [
+          -75.14,
+          39.93
+        ],
+        [
+          -75.18,
+          39.93
+        ],
+        [
+          -75.18,
+          39.96
+        ]
+      ]
+    ]
+  }
+}
