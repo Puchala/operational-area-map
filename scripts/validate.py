@@ -28,15 +28,23 @@ for path in sorted((ROOT / "operational-areas").glob("*/*.geojson")):
         if geom.is_empty:
             errors.append(f"{path}: geometry is empty")
 
+        def safe_id(value):
+            value = "".join("-" if not (char.isalnum() or char in "._-") else char for char in value)
+            while "--" in value:
+                value = value.replace("--", "-")
+            return value.strip("-")[:80]
+
         expected = path.stem
         actual = data["properties"]["site_id"]
-        if expected != actual:
-            errors.append(f"{path}: filename/site_id mismatch ({expected} != {actual})")
+        expected_site = safe_id(actual)
+        if expected != expected_site:
+            errors.append(f"{path}: filename/site_id mismatch ({expected} != {expected_site})")
 
         operator_dir = path.parent.name
         operator_id = data["properties"]["operator_id"]
-        if operator_dir != operator_id:
-            errors.append(f"{path}: directory/operator_id mismatch ({operator_dir} != {operator_id})")
+        expected_operator = safe_id(operator_id)
+        if operator_dir != expected_operator:
+            errors.append(f"{path}: directory/operator_id mismatch ({operator_dir} != {expected_operator})")
 
         print(f"PASS  {path}")
     except Exception as exc:
