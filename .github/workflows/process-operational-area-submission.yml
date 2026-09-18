@@ -83,7 +83,7 @@ jobs:
             const centerPoint = centerRaw ? (() => {
               const parts = centerRaw.split(',').map(x => Number(x.trim()));
               if (parts.length !== 2 || parts.some(Number.isNaN)) throw new Error('Center Point must be latitude,longitude.');
-              return { type: 'Point', coordinates: [parts[1], parts[0]] };
+              return { latitude: parts[0], longitude: parts[1] };
             })() : undefined;
 
             const safe = value => value.replace(/[^A-Za-z0-9._-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
@@ -99,10 +99,11 @@ jobs:
             if (centerPoint) properties.center_point = centerPoint;
             if (bounds) properties.geographic_bounds = bounds;
             if (contactName || contactEmail || contactPhone) {
-              properties.coordination_contact = {};
-              if (contactName) properties.coordination_contact.name = contactName;
-              if (contactEmail) properties.coordination_contact.email = contactEmail;
-              if (contactPhone) properties.coordination_contact.phone = contactPhone;
+              const contactParts = [];
+              if (contactName) contactParts.push(contactName);
+              if (contactEmail) contactParts.push(contactEmail);
+              if (contactPhone) contactParts.push(contactPhone);
+              properties.coordination_contact = contactParts.join(' | ');
             }
             if (effectiveFrom) properties.effective_from = effectiveFrom;
             if (effectiveTo) properties.effective_to = effectiveTo;
