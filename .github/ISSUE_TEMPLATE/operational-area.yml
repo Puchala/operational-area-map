@@ -5,6 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        <!-- OPERATIONAL-AREA-SUBMISSION -->
+
         Submit only the minimum information needed for geographic overlap awareness.
         Do not include routes, trajectories, customers, flight volumes, detailed operational strategies, or other commercially sensitive information.
 
