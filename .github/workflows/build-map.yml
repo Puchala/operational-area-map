@@ -9,6 +9,8 @@ on:
       - "operational-areas/**/*.geojson"
       - "scripts/build_map_data.py"
       - ".github/workflows/build-map.yml"
+  repository_dispatch:
+    types: [operational-area-published]
   workflow_dispatch:
 
 permissions:
