@@ -16,7 +16,7 @@
     },
     "coordination_contact": "E2E Test Contact | ops@example.com | +1-555-010-0099",
     "effective_from": "2026-09-18T00:00:00Z",
-    "effective_to": "2026-09-20T00:00:00Z"
+    "effective_to": "2026-09-21T00:00:00Z"
   },
   "geometry": {
     "type": "Polygon",
