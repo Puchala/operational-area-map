@@ -39,8 +39,11 @@
     .popup-row { font-size:12px; margin:4px 0; line-height:1.4; }
     .popup-contact { margin-top:8px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; line-height:1.4; }
     .popup-note { margin-top:8px; padding-top:8px; border-top:1px solid #e2e8f0; color:#64748b; font-size:11px; line-height:1.4; }
+    .circle-center-marker { width:12px; height:12px; border-radius:50%; background:#fff; border:3px solid #2563eb; box-shadow:0 1px 6px rgba(15,23,42,.35); box-sizing:border-box; }
+    .circle-center-marker.overlap { border-color:#f97316; }
     @media (max-width:600px) { .panel { top:10px; left:10px; width:calc(100vw - 20px); } .body { max-height:48vh; } h1 { font-size:21px; } }
   </style>
+  <!-- circle-visual-refresh: 2026-09-19 -->
 </head>
 <body>
   <div id="map"></div>
@@ -117,7 +120,14 @@
         const layers = L.geoJSON(data, {
           style: feature => {
             const overlap = !!feature.properties?.potential_overlap;
-            return { color: overlap ? '#f97316' : '#2563eb', weight:3, fillColor: overlap ? '#fb923c' : '#60a5fa', fillOpacity:.25 };
+            const isCircle = feature.properties?.operational_area_definition?.type === 'Circle';
+            return {
+              color: overlap ? '#f97316' : '#2563eb',
+              weight: isCircle ? 2.25 : 3,
+              opacity: isCircle ? 0.9 : 1,
+              fillColor: overlap ? '#fb923c' : '#60a5fa',
+              fillOpacity: isCircle ? 0.12 : 0.25
+            };
           },
           onEachFeature: (feature, layer) => {
             const p = feature.properties || {};
@@ -133,6 +143,20 @@
             const contact = p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : '';
             const addressId = `address-${L.Util.stamp(layer)}`;
             layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality)}</div>${centerRow}<div class="popup-row"><strong>Address:</strong> <span id="${addressId}">Loading…</span></div>${radiusRow}<div class="popup-row"><strong>Effective:</strong> ${escapeHtml(p.effective_from || 'Not specified')}${p.effective_to ? ` to ${escapeHtml(p.effective_to)}` : ''}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${contact}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the center point.</div>`);
+
+            if (center && typeof center.latitude === 'number' && typeof center.longitude === 'number' && definition?.type === 'Circle') {
+              const centerMarker = L.marker([center.latitude, center.longitude], {
+                icon: L.divIcon({
+                  className: '',
+                  html: '<div class="circle-center-marker' + (p.potential_overlap ? ' overlap' : '') + '" aria-hidden="true"></div>',
+                  iconSize: [12, 12],
+                  iconAnchor: [6, 6]
+                }),
+                interactive: false,
+                keyboard: false
+              }).addTo(map);
+              layer._circleCenterMarker = centerMarker;
+            }
 
             layer.on('popupopen', async () => {
               const element = document.getElementById(addressId);
