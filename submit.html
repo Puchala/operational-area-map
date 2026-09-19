@@ -57,7 +57,7 @@
       <div class="field"><span>Radius</span><strong id="radius">Only applicable to circles</strong></div>
     </div>
     <textarea id="output" readonly aria-label="Generated GeoJSON geometry" placeholder="Your generated Polygon or MultiPolygon geometry will appear here."></textarea>
-    <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Open Prefilled GitHub Submission</strong>. The submission text will be copied to your clipboard and GitHub will open a new Issue where you can paste it and submit.</p>
+    <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Open GitHub Submission</strong>. GitHub will open a new Issue with the submission details already populated.</p>
     <p class="circle-note" style="color:#64748b;font-size:13px;margin-bottom:0;">For a circle, the <strong>center point and radius</strong> are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.</p>
   </section>
 
@@ -82,7 +82,7 @@
       <label style="font-size:13px;font-weight:600;"><input id="minimumInfo" type="checkbox"> I confirm this contains only the minimum necessary information for geographic overlap awareness and no sensitive operational details.</label>
       <label style="font-size:13px;font-weight:600;"><input id="authorized" type="checkbox"> I confirm I am authorized to publish this operational-area information on behalf of the operator.</label>
     </div>
-    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Open Prefilled GitHub Submission</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
+    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Open GitHub Submission</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
     <div id="submissionStatus" class="notice" style="display:none;margin-top:14px;"></div>
   </section>
 
@@ -221,6 +221,26 @@
 
 
   function buildSubmissionText() {
+    const payload = buildSubmissionPayload();
+    const fence = String.fromCharCode(96).repeat(3);
+    const lines = [];
+    lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->', '');
+    lines.push('### Operator ID', payload.operator_id, '');
+    lines.push('### Site / Area ID', payload.site_id, '');
+    lines.push('### Metro / Locality', payload.metro_locality, '');
+    if (payload.geometry) lines.push('### Operational Area Geometry', fence + 'json', JSON.stringify(payload.geometry, null, 2), fence, '');
+    if (payload.operational_area_definition) lines.push('### Operational Area Definition (optional)', fence + 'json', JSON.stringify(payload.operational_area_definition, null, 2), fence, '');
+    lines.push('### Center Point (optional)', payload.center_point || '', '');
+    if (payload.geographic_bounds) lines.push('### Geographic Bounds (optional)', fence + 'json', JSON.stringify(payload.geographic_bounds, null, 2), fence, '');
+    lines.push('### Coordination Contact Name (optional)', payload.coordination_contact_name || '', '');
+    lines.push('### Coordination Contact Email (optional)', payload.coordination_contact_email || '', '');
+    lines.push('### Coordination Contact Phone (optional)', payload.coordination_contact_phone || '', '');
+    lines.push('### Effective From (optional)', payload.effective_from || '', '');
+    lines.push('### Effective To (optional)', payload.effective_to || '', '');
+    lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
+    return lines.join('\\n');
+  }
+  function buildSubmissionPayload() {
     const operatorId = document.getElementById('operatorId').value.trim();
     const siteId = document.getElementById('siteId').value.trim();
     const metro = document.getElementById('metroLocality').value.trim();
@@ -228,53 +248,83 @@
     if (!operatorId || !siteId || !metro) throw new Error('Complete the required fields first.');
     if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
     if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
+    return {
+      version: 1,
+      operator_id: operatorId,
+      site_id: siteId,
+      metro_locality: metro,
+      geometry: circleDefinition ? null : JSON.parse(geometry),
+      operational_area_definition: circleDefinition || null,
+      center_point: centerPointInput.value.trim() || null,
+      geographic_bounds: boundsInput.value.trim() ? JSON.parse(boundsInput.value.trim()) : null,
+      coordination_contact_name: document.getElementById('contactName').value.trim() || null,
+      coordination_contact_email: document.getElementById('contactEmail').value.trim() || null,
+      coordination_contact_phone: document.getElementById('contactPhone').value.trim() || null,
+      effective_from: document.getElementById('effectiveFrom').value.trim() || null,
+      effective_to: document.getElementById('effectiveTo').value.trim() || null
+    };
+  }
+
+  function bytesToBase64Url(bytes) {
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  async function encodeSubmissionPayload(payload) {
+    if (!window.CompressionStream) throw new Error('This browser does not support the secure submission format. Please use a current Chrome, Edge, Safari, or Firefox release.');
+    const json = JSON.stringify(payload);
+    const stream = new CompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    await writer.write(new TextEncoder().encode(json));
+    await writer.close();
+    const compressed = new Uint8Array(await new Response(stream.readable).arrayBuffer());
+    return bytesToBase64Url(compressed);
+  }
+
+  function buildIssueBody(payloadToken, payload) {
     const lines = [];
-    lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->','');
-    lines.push('### Operator ID', operatorId, '');
-    lines.push('### Site / Area ID', siteId, '');
-    lines.push('### Metro / Locality', metro, '');
-    if (geometry) lines.push('### Operational Area Geometry', fence + 'json', geometry, fence, '');
-    if (circleDefinition) lines.push('### Operational Area Definition (optional)', fence + 'json', JSON.stringify(circleDefinition, null, 2), fence, '');
-    lines.push('### Center Point (optional)', centerPointInput.value.trim(), '');
-    lines.push('### Geographic Bounds (optional)', fence + 'json', boundsInput.value.trim(), fence, '');
-    lines.push('### Coordination Contact Name (optional)', document.getElementById('contactName').value.trim(), '');
-    lines.push('### Coordination Contact Email (optional)', document.getElementById('contactEmail').value.trim(), '');
-    lines.push('### Coordination Contact Phone (optional)', document.getElementById('contactPhone').value.trim(), '');
-    lines.push('### Effective From (optional)', document.getElementById('effectiveFrom').value.trim(), '');
-    lines.push('### Effective To (optional)', document.getElementById('effectiveTo').value.trim(), '');
+    lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->', '');
+    lines.push('### Operator ID', payload.operator_id, '');
+    lines.push('### Site / Area ID', payload.site_id, '');
+    lines.push('### Metro / Locality', payload.metro_locality, '');
+    if (payload.operational_area_definition) {
+      lines.push('### Operational Area Definition (optional)', '```json', JSON.stringify(payload.operational_area_definition, null, 2), '```', '');
+    }
+    if (payload.geometry) {
+      lines.push('### Operational Area Geometry', '```json', JSON.stringify(payload.geometry), '```', '');
+    }
+    lines.push('### Center Point (optional)', payload.center_point || '', '');
+    if (payload.geographic_bounds) {
+      lines.push('### Geographic Bounds (optional)', '```json', JSON.stringify(payload.geographic_bounds), '```', '');
+    }
+    lines.push('### Coordination Contact Name (optional)', payload.coordination_contact_name || '', '');
+    lines.push('### Coordination Contact Email (optional)', payload.coordination_contact_email || '', '');
+    lines.push('### Coordination Contact Phone (optional)', payload.coordination_contact_phone || '', '');
+    lines.push('### Effective From (optional)', payload.effective_from || '', '');
+    lines.push('### Effective To (optional)', payload.effective_to || '', '');
+    lines.push('### Submission Payload', '', '<!-- OAM1:' + payloadToken + ' -->', '');
     lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
     return lines.join('\n');
   }
 
-  function buildGitHubIssueUrl() {
-    const operatorId = document.getElementById('operatorId').value.trim();
-    const siteId = document.getElementById('siteId').value.trim();
-    const metro = document.getElementById('metroLocality').value.trim();
-    const geometry = submissionGeometry.value.trim();
-    if (!operatorId || !siteId || !metro) throw new Error('Complete the required fields first.');
-    if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
-    if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
+  async function buildGitHubIssueUrl() {
+    const payload = buildSubmissionPayload();
+    const payloadToken = await encodeSubmissionPayload(payload);
+    const title = 'Operational Area: ' + payload.operator_id + ' / ' + payload.site_id;
+    const body = buildIssueBody(payloadToken, payload);
     const params = new URLSearchParams();
-    params.set('template', 'operational-area-form.yml');
-    params.set('title', 'Operational Area: ' + operatorId + ' / ' + siteId);
-    params.set('operator-id', operatorId);
-    params.set('site-id', siteId);
-    params.set('metro-locality', metro);
-    if (circleDefinition) params.set('operational-area-definition', JSON.stringify(circleDefinition));
-    else params.set('geometry', geometry);
-    if (centerPointInput.value.trim()) params.set('center-point', centerPointInput.value.trim());
-    if (boundsInput.value.trim()) params.set('geographic-bounds', boundsInput.value.trim());
-    const contactName = document.getElementById('contactName').value.trim();
-    const contactEmail = document.getElementById('contactEmail').value.trim();
-    const contactPhone = document.getElementById('contactPhone').value.trim();
-    const effectiveFrom = document.getElementById('effectiveFrom').value.trim();
-    const effectiveTo = document.getElementById('effectiveTo').value.trim();
-    if (contactName) params.set('contact-name', contactName);
-    if (contactEmail) params.set('contact-email', contactEmail);
-    if (contactPhone) params.set('contact-phone', contactPhone);
-    if (effectiveFrom) params.set('effective-from', effectiveFrom);
-    if (effectiveTo) params.set('effective-to', effectiveTo);
-    return 'https://github.com/Puchala/operational-area-map/issues/new?' + params.toString();
+    params.set('template', 'operational-area.md');
+    params.set('title', title);
+    params.set('body', body);
+    const url = 'https://github.com/Puchala/operational-area-map/issues/new?' + params.toString();
+    if (url.length > 7500) {
+      throw new Error('This submission is too large for a GitHub URL. Please simplify the geometry or use Copy Submission Text.');
+    }
+    return url;
   }
 
   function updateSubmissionButtons() {
@@ -296,21 +346,31 @@
 
   document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
   document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
-  createGithubSubmission.addEventListener('click', () => {
+  createGithubSubmission.addEventListener('click', async () => {
     try {
-      const url = buildGitHubIssueUrl();
+      createGithubSubmission.disabled = true;
+      const url = await buildGitHubIssueUrl();
       window.open(url, '_blank', 'noopener,noreferrer');
-      submissionStatus.textContent = 'GitHub is open with the submission pre-populated. Review the fields and click Create issue.';
+      submissionStatus.textContent = 'GitHub is open with the submission pre-populated. Review it and click Create issue.';
+      submissionStatus.style.display = 'block';
+    } catch (e) {
+      submissionStatus.textContent = e.message;
+      submissionStatus.style.display = 'block';
+    } finally {
+      updateSubmissionButtons();
+    }
+  });
+
+  copySubmissionText.addEventListener('click', async () => {
+    try {
+      const text = buildSubmissionText();
+      await navigator.clipboard.writeText(text);
+      submissionStatus.textContent = 'Submission text copied.';
       submissionStatus.style.display = 'block';
     } catch (e) {
       submissionStatus.textContent = e.message;
       submissionStatus.style.display = 'block';
     }
-  });
-
-  copySubmissionText.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(buildSubmissionText()); submissionStatus.textContent = 'Submission text copied.'; submissionStatus.style.display = 'block'; }
-    catch (e) { submissionStatus.textContent = e.message; submissionStatus.style.display = 'block'; }
   });
 
   map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); refresh(); });
