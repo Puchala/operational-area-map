@@ -351,14 +351,16 @@
   createGithubSubmission.addEventListener('click', async () => {
     try {
       createGithubSubmission.disabled = true;
+      createGithubSubmission.textContent = 'Opening GitHub...';
       const url = await buildGitHubIssueUrl();
-      window.open(url, '_blank', 'noopener,noreferrer');
-      submissionStatus.textContent = 'GitHub is open with the submission pre-populated. Review it and click Create issue.';
-      submissionStatus.style.display = 'block';
+
+      // Navigate in the same tab so the browser cannot block the transition
+      // after the asynchronous payload encoding step.
+      window.location.assign(url);
     } catch (e) {
+      createGithubSubmission.textContent = 'Open GitHub Submission';
       submissionStatus.textContent = e.message;
       submissionStatus.style.display = 'block';
-    } finally {
       updateSubmissionButtons();
     }
   });
