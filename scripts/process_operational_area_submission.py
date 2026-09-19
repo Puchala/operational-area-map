@@ -173,14 +173,19 @@ def main():
     issue_url = issue.get("html_url", "")
     body = issue.get("body") or ""
 
-    payload_match = re.search(r'<!--\s*OAM1:([A-Za-z0-9_-]+)\s*-->', body)
+    payload_match = re.search(r'<!--\s*OAM(1|2):([A-Za-z0-9_-]+)\s*-->', body)
     payload = None
     if payload_match:
-        token = payload_match.group(1)
+        version = payload_match.group(1)
+        token = payload_match.group(2)
         try:
             padded = token + ('=' * (-len(token) % 4))
-            compressed = base64.urlsafe_b64decode(padded.encode('ascii'))
-            payload = json.loads(gzip.decompress(compressed).decode('utf-8'))
+            encoded = base64.urlsafe_b64decode(padded.encode('ascii'))
+            if version == '1':
+                decoded = gzip.decompress(encoded).decode('utf-8')
+            else:
+                decoded = encoded.decode('utf-8')
+            payload = json.loads(decoded)
         except (ValueError, OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             fail(f'Embedded submission payload is invalid: {exc}')
 
