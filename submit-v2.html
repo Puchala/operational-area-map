@@ -312,6 +312,25 @@
     return lines.join('\n');
   }
 
+  function getGitHubRepositoryUrl() {
+    const hostname = window.location.hostname;
+    const githubPagesSuffix = '.github.io';
+
+    if (!hostname.endsWith(githubPagesSuffix)) {
+      throw new Error('This submission tool must be opened from the repository GitHub Pages site.');
+    }
+
+    const owner = hostname.slice(0, -githubPagesSuffix.length);
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    const repo = pathParts[0];
+
+    if (!owner || !repo) {
+      throw new Error('Unable to determine the GitHub repository from the current Pages URL.');
+    }
+
+    return 'https://github.com/' + owner + '/' + repo;
+  }
+
   function buildGitHubIssueUrl() {
     const payload = buildSubmissionPayload();
     const payloadToken = encodeSubmissionPayload(payload);
@@ -321,10 +340,13 @@
     params.set('template', 'operational-area.md');
     params.set('title', title);
     params.set('body', body);
-    const url = 'https://github.com/Puchala/operational-area-map/issues/new?' + params.toString();
+
+    const url = getGitHubRepositoryUrl() + '/issues/new?' + params.toString();
+
     if (url.length > 7500) {
       throw new Error('This submission is too large for a GitHub URL. Please use Copy Submission Text for this geometry.');
     }
+
     return url;
   }
 
