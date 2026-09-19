@@ -16,10 +16,11 @@
    - Metro / Locality
    - Optional coordination contact
    - Optional effective dates
-7. For a circle, the center point and radius are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.
-8. Submit the request through the GitHub submission workflow.
-9. GitHub Actions process and validate the submission.
-10. The validated operational area is published to the shared map.
+7. Click **Copy Submission & Open GitHub**. The submission text is copied to the clipboard and a GitHub Issue opens.
+8. Paste the copied submission text into the Issue and click **Create issue**.
+9. For a circle, the center point and radius are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.
+10. GitHub Actions process and validate the submission.
+11. The validated operational area is published to the shared map.
 
 Published records are stored under:
 
