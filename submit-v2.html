@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Submit Operational Area | Shared UAS Airspace Awareness</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" crossorigin="">
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f6f8fb; }
+    body { margin: 0; }
+    header { background: #0f172a; color: white; padding: 22px 24px; }
+    header .wrap, main { max-width: 1180px; margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 26px; }
+    header p { margin: 0; color: #cbd5e1; }
+    main { padding: 24px; }
+    .card { background: white; border: 1px solid #dbe2ea; border-radius: 14px; box-shadow: 0 4px 18px rgba(15,23,42,.06); padding: 20px; margin-bottom: 18px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .step { padding: 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+    .step strong { display: block; margin-bottom: 4px; }
+    #map { height: 540px; border-radius: 10px; border: 1px solid #dbe2ea; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    button, a.button { border: 0; border-radius: 9px; padding: 11px 16px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 14px; }
+    button.primary, a.button.primary { background: #0f172a; color: white; }
+    button.secondary { background: #e2e8f0; color: #172033; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    textarea { width: 100%; min-height: 180px; box-sizing: border-box; margin-top: 12px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 9px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+    .field { background: #f8fafc; padding: 12px; border-radius: 9px; border: 1px solid #e2e8f0; }
+    .field span { display: block; color: #64748b; font-size: 12px; margin-bottom: 4px; }
+    .notice { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 12px 14px; border-radius: 8px; }
+    @media (max-width: 720px) { .steps, .meta { grid-template-columns: 1fr; } main { padding: 14px; } #map { height: 460px; } }
+  </style>
+  <!-- submission-flow-version: 2026-09-19 -->
+</head>
+<body>
+<header><div class="wrap"><h1>Operational Area Submission</h1><p>Draw the minimum geographic area needed for overlap awareness, then submit it through the GitHub review workflow.</p></div></header>
+<main>
+  <section class="card">
+    <div class="steps">
+      <div class="step"><strong>1. Draw</strong>Use the polygon, rectangle, or circle tool to define the operational area.</div>
+      <div class="step"><strong>2. Review</strong>Check the shape, center point, and geographic bounds before submitting.</div>
+      <div class="step"><strong>3. Submit</strong>Complete the submission details, then create a prefilled GitHub request for review.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div id="map" aria-label="Operational area drawing map"></div>
+    <div class="actions">
+      <button id="copy" class="primary" disabled>Copy GeoJSON Geometry</button>
+      <button id="download" class="secondary" disabled>Download Geometry</button>
+      <a class="button primary" href="#submission">Continue to Submission Details</a>
+    </div>
+    <div class="meta" aria-live="polite">
+      <div class="field"><span>Center Point</span><strong id="center">Draw an area to calculate</strong></div>
+      <div class="field"><span>Geographic Bounds</span><strong id="bounds">Draw an area to calculate</strong></div>
+      <div class="field"><span>Radius</span><strong id="radius">Only applicable to circles</strong></div>
+    </div>
+    <textarea id="output" readonly aria-label="Generated GeoJSON geometry" placeholder="Your generated Polygon or MultiPolygon geometry will appear here."></textarea>
+    <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Open Prefilled GitHub Submission</strong>. The submission text will be copied to your clipboard and GitHub will open a new Issue where you can paste it and submit.</p>
+    <p class="circle-note" style="color:#64748b;font-size:13px;margin-bottom:0;">For a circle, the <strong>center point and radius</strong> are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.</p>
+  </section>
+
+
+  <section class="card" id="submission">
+    <h2>2. Submission details</h2>
+    <p style="color:#64748b;font-size:13px;">Complete the required fields below. Geometry, center point, and geographic bounds are generated automatically from the map.</p>
+    <div class="meta" style="margin-top:0;">
+      <div class="field"><span>Operator ID *</span><input id="operatorId" required placeholder="e.g. OPERATOR-001" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Site / Area ID *</span><input id="siteId" required placeholder="e.g. SJC-NORTH-01" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field" style="grid-column:1/-1;"><span>Metro / Locality *</span><input id="metroLocality" required placeholder="e.g. San Jose, CA" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Center Point</span><input id="centerPoint" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;"></div>
+      <div class="field"><span>Geographic Bounds</span><input id="geographicBounds" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;"></div>
+      <div class="field"><span>Coordination Contact Name</span><input id="contactName" placeholder="Optional" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Coordination Contact Email</span><input id="contactEmail" type="email" placeholder="ops@example.com" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Coordination Contact Phone</span><input id="contactPhone" placeholder="+1-555-010-0000" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
+      <div class="field"><span>Effective From</span><input id="effectiveFrom" type="date" aria-label="Effective From date" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></div>
+      <div class="field"><span>Effective To</span><input id="effectiveTo" type="date" aria-label="Effective To date" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></div>
+      <div class="field" style="grid-column:1/-1;"><span>Generated GeoJSON Geometry</span><textarea id="submissionGeometry" readonly style="width:100%;min-height:140px;box-sizing:border-box;margin-top:8px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:#f8fafc;"></textarea></div>
+    </div>
+    <div style="margin-top:14px;display:grid;gap:10px;">
+      <label style="font-size:13px;font-weight:600;"><input id="minimumInfo" type="checkbox"> I confirm this contains only the minimum necessary information for geographic overlap awareness and no sensitive operational details.</label>
+      <label style="font-size:13px;font-weight:600;"><input id="authorized" type="checkbox"> I confirm I am authorized to publish this operational-area information on behalf of the operator.</label>
+    </div>
+    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Open Prefilled GitHub Submission</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
+    <div id="submissionStatus" class="notice" style="display:none;margin-top:14px;"></div>
+  </section>
+
+  <section class="card">
+    <div class="notice"><strong>Information boundary:</strong> publish only the minimum information needed for geographic overlap awareness. Do not include routes, trajectories, customers, flight volumes, detailed operational strategies, or other commercially sensitive information.</div>
+  </section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js" crossorigin=""></script>
+<script>
+  const map = L.map('map').setView([37.35, -121.91], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  const drawn = new L.FeatureGroup().addTo(map);
+  map.addControl(new L.Control.Draw({
+    edit: { featureGroup: drawn },
+    draw: { polygon: true, rectangle: true, circle: true, polyline: false, circlemarker: false, marker: false }
+  }));
+
+  const output = document.getElementById('output');
+  const copy = document.getElementById('copy');
+  const download = document.getElementById('download');
+  const center = document.getElementById('center');
+  const bounds = document.getElementById('bounds');
+  const radius = document.getElementById('radius');
+  let circleDefinition = null;
+  const centerPointInput = document.getElementById('centerPoint');
+  const boundsInput = document.getElementById('geographicBounds');
+  const submissionGeometry = document.getElementById('submissionGeometry');
+  const createGithubSubmission = document.getElementById('createGithubSubmission');
+  const copySubmissionText = document.getElementById('copySubmissionText');
+  const submissionStatus = document.getElementById('submissionStatus');
+
+  function circleToPolygon(centerLat, centerLng, radiusMeters, segments = 64) {
+    const earthRadius = 6371008.8;
+    const angularDistance = radiusMeters / earthRadius;
+    const lat1 = centerLat * Math.PI / 180;
+    const lon1 = centerLng * Math.PI / 180;
+    const coordinates = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const bearing = (2 * Math.PI * i) / segments;
+      const lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(angularDistance) +
+        Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
+      );
+      const lon2 = lon1 + Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
+        Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+      );
+
+      const normalizedLon = ((lon2 * 180 / Math.PI + 540) % 360) - 180;
+      coordinates.push([
+        Number(normalizedLon.toFixed(7)),
+        Number((lat2 * 180 / Math.PI).toFixed(7))
+      ]);
+    }
+
+    return { type: 'Polygon', coordinates: [coordinates] };
+  }
+
+  function formatRadius(radiusMeters) {
+    if (radiusMeters >= 1000) return (radiusMeters / 1000).toFixed(2) + ' km';
+    return Math.round(radiusMeters) + ' m';
+  }
+
+  function refresh() {
+    const layers = drawn.getLayers();
+    circleDefinition = null;
+
+    if (!layers.length) {
+      output.value = ''; submissionGeometry.value = ''; copy.disabled = true; download.disabled = true;
+      center.textContent = 'Draw an area to calculate';
+      bounds.textContent = 'Draw an area to calculate';
+      radius.textContent = 'Only applicable to circles';
+      centerPointInput.value = ''; boundsInput.value = '';
+      createGithubSubmission.disabled = true; copySubmissionText.disabled = true;
+      return;
+    }
+
+    const layer = layers[0];
+    const isCircle = layer instanceof L.Circle;
+    let geometry;
+
+    if (isCircle) {
+      const circleCenter = layer.getLatLng();
+      const radiusMeters = layer.getRadius();
+
+      circleDefinition = {
+        type: 'Circle',
+        center_point: {
+          latitude: Number(circleCenter.lat.toFixed(7)),
+          longitude: Number(circleCenter.lng.toFixed(7))
+        },
+        radius_meters: Number(radiusMeters.toFixed(2))
+      };
+
+      geometry = circleToPolygon(
+        circleDefinition.center_point.latitude,
+        circleDefinition.center_point.longitude,
+        circleDefinition.radius_meters
+      );
+      radius.textContent = formatRadius(circleDefinition.radius_meters);
+    } else {
+      const feature = layer.toGeoJSON();
+      geometry = feature.geometry;
+      radius.textContent = 'Only applicable to circles';
+    }
+
+    output.value = JSON.stringify(geometry, null, 2);
+    submissionGeometry.value = JSON.stringify(geometry, null, 2);
+
+    const b = layer.getBounds();
+    const c = b.getCenter();
+    const centerText = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
+    const boundsText = 'south ' + b.getSouth().toFixed(6) + ', west ' + b.getWest().toFixed(6) + ', north ' + b.getNorth().toFixed(6) + ', east ' + b.getEast().toFixed(6);
+
+    center.textContent = isCircle
+      ? circleDefinition.center_point.latitude + ',' + circleDefinition.center_point.longitude
+      : centerText;
+    bounds.textContent = boundsText;
+    centerPointInput.value = isCircle
+      ? circleDefinition.center_point.latitude + ',' + circleDefinition.center_point.longitude
+      : centerText;
+    boundsInput.value = JSON.stringify({
+      south: Number(b.getSouth().toFixed(6)),
+      west: Number(b.getWest().toFixed(6)),
+      north: Number(b.getNorth().toFixed(6)),
+      east: Number(b.getEast().toFixed(6))
+    });
+
+    copy.disabled = false; download.disabled = false;
+    createGithubSubmission.disabled = false;
+    copySubmissionText.disabled = false;
+    updateSubmissionButtons();
+  }
+
+
+  function buildSubmissionText() {
+    const operatorId = document.getElementById('operatorId').value.trim();
+    const siteId = document.getElementById('siteId').value.trim();
+    const metro = document.getElementById('metroLocality').value.trim();
+    const geometry = submissionGeometry.value.trim();
+    if (!operatorId || !siteId || !metro) throw new Error('Complete the required fields first.');
+    if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
+    if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
+    const lines = [];
+    lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->','');
+    lines.push('### Operator ID', operatorId, '');
+    lines.push('### Site / Area ID', siteId, '');
+    lines.push('### Metro / Locality', metro, '');
+    if (geometry) lines.push('### Operational Area Geometry', fence + 'json', geometry, fence, '');
+    if (circleDefinition) lines.push('### Operational Area Definition (optional)', fence + 'json', JSON.stringify(circleDefinition, null, 2), fence, '');
+    lines.push('### Center Point (optional)', centerPointInput.value.trim(), '');
+    lines.push('### Geographic Bounds (optional)', fence + 'json', boundsInput.value.trim(), fence, '');
+    lines.push('### Coordination Contact Name (optional)', document.getElementById('contactName').value.trim(), '');
+    lines.push('### Coordination Contact Email (optional)', document.getElementById('contactEmail').value.trim(), '');
+    lines.push('### Coordination Contact Phone (optional)', document.getElementById('contactPhone').value.trim(), '');
+    lines.push('### Effective From (optional)', document.getElementById('effectiveFrom').value.trim(), '');
+    lines.push('### Effective To (optional)', document.getElementById('effectiveTo').value.trim(), '');
+    lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
+    return lines.join('\n');
+  }
+
+  function buildGitHubIssueUrl() {
+    const operatorId = document.getElementById('operatorId').value.trim();
+    const siteId = document.getElementById('siteId').value.trim();
+    const metro = document.getElementById('metroLocality').value.trim();
+    const geometry = submissionGeometry.value.trim();
+    if (!operatorId || !siteId || !metro) throw new Error('Complete the required fields first.');
+    if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
+    if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
+    const params = new URLSearchParams();
+    params.set('template', 'operational-area.yml');
+    params.set('title', 'Operational Area: ' + operatorId + ' / ' + siteId);
+    params.set('operator-id', operatorId);
+    params.set('site-id', siteId);
+    params.set('metro-locality', metro);
+    if (circleDefinition) params.set('operational-area-definition', JSON.stringify(circleDefinition));
+    else params.set('geometry', geometry);
+    if (centerPointInput.value.trim()) params.set('center-point', centerPointInput.value.trim());
+    if (boundsInput.value.trim()) params.set('geographic-bounds', boundsInput.value.trim());
+    const contactName = document.getElementById('contactName').value.trim();
+    const contactEmail = document.getElementById('contactEmail').value.trim();
+    const contactPhone = document.getElementById('contactPhone').value.trim();
+    const effectiveFrom = document.getElementById('effectiveFrom').value.trim();
+    const effectiveTo = document.getElementById('effectiveTo').value.trim();
+    if (contactName) params.set('contact-name', contactName);
+    if (contactEmail) params.set('contact-email', contactEmail);
+    if (contactPhone) params.set('contact-phone', contactPhone);
+    if (effectiveFrom) params.set('effective-from', effectiveFrom);
+    if (effectiveTo) params.set('effective-to', effectiveTo);
+    return 'https://github.com/Puchala/operational-area-map/issues/new?' + params.toString();
+  }
+
+  function updateSubmissionButtons() {
+    const ready = Boolean(document.getElementById('operatorId').value.trim() && document.getElementById('siteId').value.trim() && document.getElementById('metroLocality').value.trim() && submissionGeometry.value.trim() && document.getElementById('minimumInfo').checked && document.getElementById('authorized').checked);
+    createGithubSubmission.disabled = !ready;
+    copySubmissionText.disabled = !ready;
+  }
+
+  const effectiveFromInput = document.getElementById('effectiveFrom');
+  const effectiveToInput = document.getElementById('effectiveTo');
+
+  effectiveFromInput.addEventListener('change', () => {
+    effectiveToInput.min = effectiveFromInput.value || '';
+    if (effectiveToInput.value && effectiveFromInput.value && effectiveToInput.value < effectiveFromInput.value) {
+      effectiveToInput.value = effectiveFromInput.value;
+    }
+    updateSubmissionButtons();
+  });
+
+  document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
+  document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
+  createGithubSubmission.addEventListener('click', () => {
+    try {
+      const url = buildGitHubIssueUrl();
+      window.open(url, '_blank', 'noopener,noreferrer');
+      submissionStatus.textContent = 'GitHub is open with the submission pre-populated. Review the fields and click Create issue.';
+      submissionStatus.style.display = 'block';
+    } catch (e) {
+      submissionStatus.textContent = e.message;
+      submissionStatus.style.display = 'block';
+    }
+  });
+
+  copySubmissionText.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(buildSubmissionText()); submissionStatus.textContent = 'Submission text copied.'; submissionStatus.style.display = 'block'; }
+    catch (e) { submissionStatus.textContent = e.message; submissionStatus.style.display = 'block'; }
+  });
+
+  map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); refresh(); });
+  map.on(L.Draw.Event.EDITED, refresh);
+  map.on(L.Draw.Event.DELETED, refresh);
+
+  copy.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(output.value); copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1600); }
+    catch { output.select(); document.execCommand('copy'); copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1600); }
+  });
+
+  download.addEventListener('click', () => {
+    const blob = new Blob([output.value + '\n'], { type: 'application/geo+json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'operational-area-geometry.geojson'; a.click(); URL.revokeObjectURL(a.href);
+  });
+</script>
+</body>
+</html>
