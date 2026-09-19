@@ -37,7 +37,7 @@
 <main>
   <section class="card">
     <div class="steps">
-      <div class="step"><strong>1. Draw</strong>Use the polygon or rectangle tool to outline the operational area.</div>
+      <div class="step"><strong>1. Draw</strong>Use the polygon, rectangle, or circle tool to define the operational area.</div>
       <div class="step"><strong>2. Review</strong>Check the shape, center point, and geographic bounds before submitting.</div>
       <div class="step"><strong>3. Submit</strong>Complete the submission details, then create a prefilled GitHub request for review.</div>
     </div>
@@ -53,9 +53,11 @@
     <div class="meta" aria-live="polite">
       <div class="field"><span>Center Point</span><strong id="center">Draw an area to calculate</strong></div>
       <div class="field"><span>Geographic Bounds</span><strong id="bounds">Draw an area to calculate</strong></div>
+      <div class="field"><span>Radius</span><strong id="radius">Only applicable to circles</strong></div>
     </div>
     <textarea id="output" readonly aria-label="Generated GeoJSON geometry" placeholder="Your generated Polygon or MultiPolygon geometry will appear here."></textarea>
     <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Create GitHub Submission</strong>. GitHub will open a prefilled publication request for final review and submission.</p>
+    <p class="circle-note" style="color:#64748b;font-size:13px;margin-bottom:0;">For a circle, the <strong>center point and radius</strong> are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.</p>
   </section>
 
 
@@ -95,7 +97,7 @@
   const drawn = new L.FeatureGroup().addTo(map);
   map.addControl(new L.Control.Draw({
     edit: { featureGroup: drawn },
-    draw: { polygon: true, rectangle: true, polyline: false, circle: false, circlemarker: false, marker: false }
+    draw: { polygon: true, rectangle: true, circle: true, polyline: false, circlemarker: false, marker: false }
   }));
 
   const output = document.getElementById('output');
@@ -103,6 +105,8 @@
   const download = document.getElementById('download');
   const center = document.getElementById('center');
   const bounds = document.getElementById('bounds');
+  const radius = document.getElementById('radius');
+  let circleDefinition = null;
   const centerPointInput = document.getElementById('centerPoint');
   const boundsInput = document.getElementById('geographicBounds');
   const submissionGeometry = document.getElementById('submissionGeometry');
@@ -110,25 +114,102 @@
   const copySubmissionText = document.getElementById('copySubmissionText');
   const submissionStatus = document.getElementById('submissionStatus');
 
+  function circleToPolygon(centerLat, centerLng, radiusMeters, segments = 64) {
+    const earthRadius = 6371008.8;
+    const angularDistance = radiusMeters / earthRadius;
+    const lat1 = centerLat * Math.PI / 180;
+    const lon1 = centerLng * Math.PI / 180;
+    const coordinates = [];
+
+    for (let i = 0; i <= segments; i++) {
+      const bearing = (2 * Math.PI * i) / segments;
+      const lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(angularDistance) +
+        Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
+      );
+      const lon2 = lon1 + Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
+        Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+      );
+
+      const normalizedLon = ((lon2 * 180 / Math.PI + 540) % 360) - 180;
+      coordinates.push([
+        Number(normalizedLon.toFixed(7)),
+        Number((lat2 * 180 / Math.PI).toFixed(7))
+      ]);
+    }
+
+    return { type: 'Polygon', coordinates: [coordinates] };
+  }
+
+  function formatRadius(radiusMeters) {
+    if (radiusMeters >= 1000) return (radiusMeters / 1000).toFixed(2) + ' km';
+    return Math.round(radiusMeters) + ' m';
+  }
+
   function refresh() {
     const layers = drawn.getLayers();
+    circleDefinition = null;
+
     if (!layers.length) {
-      output.value = ''; submissionGeometry.value = ''; center.disabled = false; copy.disabled = true; download.disabled = true;
-      center.textContent = 'Draw an area to calculate'; bounds.textContent = 'Draw an area to calculate';
-      centerPointInput.value = ''; boundsInput.value = ''; createGithubSubmission.disabled = true; copySubmissionText.disabled = true; return;
+      output.value = ''; submissionGeometry.value = ''; copy.disabled = true; download.disabled = true;
+      center.textContent = 'Draw an area to calculate';
+      bounds.textContent = 'Draw an area to calculate';
+      radius.textContent = 'Only applicable to circles';
+      centerPointInput.value = ''; boundsInput.value = '';
+      createGithubSubmission.disabled = true; copySubmissionText.disabled = true;
+      return;
     }
-    const feature = layers[0].toGeoJSON();
-    const geometry = feature.geometry;
+
+    const layer = layers[0];
+    const isCircle = layer instanceof L.Circle;
+    let geometry;
+
+    if (isCircle) {
+      const circleCenter = layer.getLatLng();
+      const radiusMeters = layer.getRadius();
+
+      circleDefinition = {
+        type: 'Circle',
+        center_point: {
+          latitude: Number(circleCenter.lat.toFixed(7)),
+          longitude: Number(circleCenter.lng.toFixed(7))
+        },
+        radius_meters: Number(radiusMeters.toFixed(2))
+      };
+
+      geometry = circleToPolygon(
+        circleDefinition.center_point.latitude,
+        circleDefinition.center_point.longitude,
+        circleDefinition.radius_meters
+      );
+      radius.textContent = formatRadius(circleDefinition.radius_meters);
+    } else {
+      const feature = layer.toGeoJSON();
+      geometry = feature.geometry;
+      radius.textContent = 'Only applicable to circles';
+    }
+
     output.value = JSON.stringify(geometry, null, 2);
     submissionGeometry.value = JSON.stringify(geometry, null, 2);
-    const b = layers[0].getBounds();
+
+    const b = layer.getBounds();
     const c = b.getCenter();
     const centerText = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
     const boundsText = 'south ' + b.getSouth().toFixed(6) + ', west ' + b.getWest().toFixed(6) + ', north ' + b.getNorth().toFixed(6) + ', east ' + b.getEast().toFixed(6);
+
     center.textContent = centerText;
     bounds.textContent = boundsText;
-    centerPointInput.value = centerText;
-    boundsInput.value = JSON.stringify({south:Number(b.getSouth().toFixed(6)),west:Number(b.getWest().toFixed(6)),north:Number(b.getNorth().toFixed(6)),east:Number(b.getEast().toFixed(6))});
+    centerPointInput.value = isCircle
+      ? circleDefinition.center_point.latitude + ',' + circleDefinition.center_point.longitude
+      : centerText;
+    boundsInput.value = JSON.stringify({
+      south: Number(b.getSouth().toFixed(6)),
+      west: Number(b.getWest().toFixed(6)),
+      north: Number(b.getNorth().toFixed(6)),
+      east: Number(b.getEast().toFixed(6))
+    });
+
     copy.disabled = false; download.disabled = false;
     createGithubSubmission.disabled = false;
     copySubmissionText.disabled = false;
@@ -149,6 +230,11 @@
     lines.push('### Site / Area ID', siteId, '');
     lines.push('### Metro / Locality', metro, '');
     lines.push('### Operational Area Geometry','```json',geometry,'```','');
+    lines.push('### Operational Area Definition (optional)');
+    if (circleDefinition) {
+      lines.push('```json', JSON.stringify(circleDefinition, null, 2), '```');
+    }
+    lines.push('');
     lines.push('### Center Point (optional)', centerPointInput.value.trim(), '');
     lines.push('### Geographic Bounds (optional)','```json',boundsInput.value.trim(),'```','');
     lines.push('### Coordination Contact Name (optional)',document.getElementById('contactName').value.trim(),'');
