@@ -16,8 +16,8 @@
    - Metro / Locality
    - Optional coordination contact
    - Optional effective dates
-7. Click **Copy Submission & Open GitHub**. The submission text is copied to the clipboard and a GitHub Issue opens.
-8. Paste the copied submission text into the Issue and click **Create issue**.
+7. Click **Open Prefilled GitHub Submission**. GitHub opens a new Issue with the submission fields pre-populated.
+8. Review the submission and click **Create issue**.
 9. For a circle, the center point and radius are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.
 10. GitHub Actions process and validate the submission.
 11. The validated operational area is published to the shared map.
