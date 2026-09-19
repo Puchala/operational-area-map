@@ -31,7 +31,7 @@
     .notice { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 12px 14px; border-radius: 8px; }
     @media (max-width: 720px) { .steps, .meta { grid-template-columns: 1fr; } main { padding: 14px; } #map { height: 460px; } }
   </style>
-  <!-- submission-flow-version: 2026-09-19.2 -->
+  <!-- submission-flow-version: 2026-09-19.3 -->
 </head>
 <body>
 <header><div class="wrap"><h1>Operational Area Submission</h1><p>Draw the minimum geographic area needed for overlap awareness, then submit it through the GitHub review workflow.</p></div></header>
@@ -238,7 +238,7 @@
     lines.push('### Effective From (optional)', payload.effective_from || '', '');
     lines.push('### Effective To (optional)', payload.effective_to || '', '');
     lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
-    return lines.join('\\n');
+    return lines.join('\n');
   }
   function buildSubmissionPayload() {
     const operatorId = document.getElementById('operatorId').value.trim();
@@ -309,7 +309,7 @@
     lines.push('### Effective To (optional)', payload.effective_to || '', '');
     lines.push('<!-- OAM2:' + payloadToken + ' -->', '');
     lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
-    return lines.join('\\n');
+    return lines.join('\n');
   }
 
   function buildGitHubIssueUrl() {
