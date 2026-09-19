@@ -28,7 +28,7 @@ Operational Area Drawing Tool
 Submission Form
    │
    ▼
-Automatic Draft Pull Request
+Automatic Pull Request
    │
    ├── GeoJSON validation
    ├── Required-field validation
@@ -56,7 +56,7 @@ The tool also calculates the center point and geographic bounds for convenience.
 
 ### 2. Submit the minimum information
 
-Open the **Submit Operational Area** Issue Form and provide:
+Complete the **Submit Operational Area** details in the drawing tool. The tool then copies the submission text and opens a GitHub Issue for you to paste and submit.
 
 - Operator ID
 - Site / Area ID
@@ -70,7 +70,7 @@ The form explicitly confirms that sensitive operational information should not b
 
 ### 3. Automatic PR creation
 
-When the form is submitted, GitHub Actions:
+When the Issue is submitted, GitHub Actions:
 
 1. Parses the structured issue-form fields.
 2. Validates the submitted geometry type and JSON structure.
