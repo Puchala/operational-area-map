@@ -44,7 +44,7 @@ Merge
 Shared Operational Area Map
 ```
 
-The repository now supports an operator-friendly submission path: an operator defines an area in the browser, submits the minimum metadata through a GitHub Issue Form, and GitHub Actions converts the submission into a draft Pull Request. Publication still requires validation and human review.
+The repository now supports an operator-friendly submission path: an operator defines an area in the browser, submits the minimum metadata through the GitHub submission workflow, and GitHub Actions processes the submission through validation and publication.
 
 ## Operator submission flow
 
@@ -76,7 +76,7 @@ When the form is submitted, GitHub Actions:
 2. Validates the submitted geometry type and JSON structure.
 3. Creates an isolated submission branch.
 4. Creates or updates the operator/site GeoJSON file.
-5. Opens a **draft Pull Request** with a standardized review checklist.
+5. Opens a Pull Request with a standardized review checklist.
 6. Links the PR back to the originating submission issue.
 7. Closes the processed submission issue.
 
@@ -84,11 +84,9 @@ When the form is submitted, GitHub Actions:
 
 The normal Pull Request validation workflow runs against the generated file. The map-build workflow performs the potential-overlap analysis after publication to `main`.
 
-### 5. Human review and publication
+### 5. Validation and publication
 
-A maintainer reviews the geometry, minimum-information boundary, metadata, contact information, dates, and automated checks. The area is not published merely because the submission form was completed.
-
-After merge, GitHub Actions rebuilds the shared GeoJSON dataset and republishes the GitHub Pages map.
+The Pull Request is validated automatically. Once the required checks pass, the submission is merged, the Issue is closed, the shared GeoJSON dataset is rebuilt, and the GitHub Pages map is republished.
 
 ## Published demo operational areas
 
@@ -123,7 +121,8 @@ The POC intentionally limits the published information to what is useful for ove
 | Operational Area Geometry | Yes | Shows the geographic area |
 | Center Point | Optional | Useful for quick geographic reference; defines the center of a circle when used |
 | Geographic Bounds | Optional | Useful for discovery/filtering |
-| Operational Area Definition | Optional | Preserves a circle center point and radius when the area is circular |\n| Coordination Contact | Optional | Allows operators to initiate follow-up |
+| Operational Area Definition | Optional | Preserves a circle center point and radius when the area is circular |
+| Coordination Contact | Optional | Allows operators to initiate follow-up |
 | Time Information | Optional | Indicates the effective period when provided |
 
 ## 🔒 Information intentionally not published
@@ -197,7 +196,7 @@ GeoJSON provides a standard geographic interchange format.
 The README, drawing tool, submission form, and interactive map provide a simple operator experience without requiring operators to hand-author GeoJSON.
 
 ### Safe-by-default publication
-The submission workflow produces a draft PR. Automated processing does not itself publish an operational area.
+The submission workflow creates a temporary Pull Request and publishes an operational area only after the required CI validation passes.
 
 ### Non-authoritative awareness
 The map indicates potential geographic overlap. It does not determine whether a particular operation may proceed or whether coordination is required.
