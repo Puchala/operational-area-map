@@ -175,7 +175,7 @@ def main():
     operator_id = clean(field(body, "Operator ID", required=True))
     site_id = clean(field(body, "Site / Area ID", required=True))
     metro = clean(field(body, "Metro / Locality", required=True))
-    geometry_raw = strip_code_fence(field(body, "Operational Area Geometry", required=True))
+    geometry_raw = strip_code_fence(field(body, "Operational Area Geometry"))
     center_raw = clean(field(body, "Center Point (optional)"))
     bounds_raw = strip_code_fence(field(body, "Geographic Bounds (optional)"))
     definition_raw = strip_code_fence(field(body, "Operational Area Definition (optional)"))
@@ -185,17 +185,19 @@ def main():
     effective_from = clean(field(body, "Effective From (optional)"))
     effective_to = clean(field(body, "Effective To (optional)"))
 
-    try:
-        geometry = json.loads(geometry_raw)
-    except json.JSONDecodeError:
-        fail("Operational Area Geometry is not valid JSON.")
+    geometry = None
+    if geometry_raw:
+        try:
+            geometry = json.loads(geometry_raw)
+        except json.JSONDecodeError:
+            fail("Operational Area Geometry is not valid JSON.")
 
-    if (
-        not isinstance(geometry, dict)
-        or geometry.get("type") not in ("Polygon", "MultiPolygon")
-        or not isinstance(geometry.get("coordinates"), list)
-    ):
-        fail("Geometry must be a GeoJSON Polygon or MultiPolygon.")
+        if (
+            not isinstance(geometry, dict)
+            or geometry.get("type") not in ("Polygon", "MultiPolygon")
+            or not isinstance(geometry.get("coordinates"), list)
+        ):
+            fail("Geometry must be a GeoJSON Polygon or MultiPolygon.")
 
     bounds = None
     if bounds_raw:
@@ -282,6 +284,16 @@ def main():
             },
             "radius_meters": round(float(radius_meters), 2),
         }
+
+    if geometry is None and operational_area_definition is None:
+        fail("Provide Operational Area Geometry or a Circle Operational Area Definition.")
+
+    if geometry is None and operational_area_definition is not None:
+        geometry = circle_to_polygon(
+            operational_area_definition["center_point"]["latitude"],
+            operational_area_definition["center_point"]["longitude"],
+            operational_area_definition["radius_meters"],
+        )
 
     safe_operator = safe_filename(operator_id)
     safe_site = safe_filename(site_id)
