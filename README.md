@@ -11,8 +11,8 @@ A GitHub-native proof of concept for publishing **minimum necessary UAS operatio
 
 | Action | Link |
 |---|---|
-| 🗺️ **View the Shared Operational Area Map** | [Open the Map](https://puchala.github.io/operational-area-map/) |
-| ✏️ **Submit an Operational Area** | [Open the Submission Tool](https://puchala.github.io/operational-area-map/submit.html) |
+| 🗺️ **View the Shared Operational Area Map** | Open the repository's **About → Website** link after GitHub Pages is enabled. |
+| ✏️ **Submit an Operational Area** | Open the **Submission Tool** from the published GitHub Pages site. |
 
 **Typical flow:** Draw or define your operational area → submit the minimum required information → GitHub Actions validates and processes the submission → the published area appears on the shared map.
 
@@ -105,9 +105,9 @@ The two San Jose demonstration areas intentionally overlap so the automated over
 
 The interactive map is published through GitHub Pages from the repository's `main` branch. It displays the published areas, potential-overlap status, effective dates, and the mock coordination contact information.
 
-**[Open the Shared Operational Area Map →](https://puchala.github.io/operational-area-map/)**
+**[Open the Shared Operational Area Map →](./)**
 
-**[Submit an Operational Area →](https://puchala.github.io/operational-area-map/submit.html)**
+**[Submit an Operational Area →](submit.html)**
 
 ## Minimum information
 
@@ -200,3 +200,6 @@ The submission workflow creates a temporary Pull Request and publishes an operat
 
 ### Non-authoritative awareness
 The map indicates potential geographic overlap. It does not determine whether a particular operation may proceed or whether coordination is required.
+
+
+> **GitHub Pages:** After enabling Pages, the published site is available from the repository's **About → Website** link. The submission tool is at `submit.html` on that Pages site.
