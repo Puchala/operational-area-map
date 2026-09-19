@@ -2,31 +2,55 @@
 
 ## Current POC workflow
 
-1. Open the repository.
-2. Select **Issues**.
-3. Select **New issue**.
-4. Choose **Publish Operational Area**.
-5. Enter:
+1. Open the shared map or submission tool.
+2. In the submission tool, choose one of the supported drawing options:
+   - Polygon
+   - Rectangle
+   - Circle
+3. For a polygon or rectangle, draw the operational area directly.
+4. For a circle, click and drag from the center point to define the radius.
+5. Review the shape, center point, geographic bounds, and radius when applicable.
+6. Complete:
    - Operator ID
    - Site / Area ID
    - Metro / Locality
-   - GeoJSON Feature
    - Optional coordination contact
-   - Optional time information
-6. Submit the issue.
-7. A maintainer reviews the request.
-8. The GeoJSON is added under:
+   - Optional effective dates
+7. For a circle, the center point and radius are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.
+8. Submit the request through the GitHub submission workflow.
+9. GitHub Actions process and validate the submission.
+10. The validated operational area is published to the shared map.
+
+Published records are stored under:
 
 ```text
 operational-areas/<OPERATOR-ID>/<SITE-ID>.geojson
 ```
 
-9. GitHub Actions validate the file.
-10. The overlap check reports any geographic intersection.
-11. Once merged, the shared map is rebuilt.
+## Geometry handling
+
+The POC accepts:
+
+- `Polygon`
+- `MultiPolygon`
+
+For circular operational areas, the published GeoJSON `geometry` is a polygon approximation, while `properties.operational_area_definition` preserves the circle definition:
+
+```json
+{
+  "type": "Circle",
+  "center_point": {
+    "latitude": 37.355,
+    "longitude": -121.915
+  },
+  "radius_meters": 1000
+}
+```
+
+This allows the map and overlap analysis to use standard GeoJSON while retaining the original center-point-and-radius representation.
 
 ## Important
 
-The current GitHub Issue Form is a POC interface. GitHub does not provide a native map-drawing control inside Issue Forms.
+The submission tool is the preferred operator interface. Operators do not need to hand-author GeoJSON.
 
-A later version can provide a map-based drawing interface while keeping GitHub as the source of truth and review system.
+The map indicates potential geographic overlap for awareness. It does not determine whether coordination is required or authorize an operation.
