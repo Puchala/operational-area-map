@@ -56,7 +56,7 @@ The tool also calculates the center point and geographic bounds for convenience.
 
 ### 2. Submit the minimum information
 
-Complete the **Submit Operational Area** details in the drawing tool. The tool then copies the submission text and opens a GitHub Issue for you to paste and submit.
+Complete the **Submit Operational Area** details in the drawing tool. The tool opens a GitHub Issue with the submission fields pre-populated.
 
 - Operator ID
 - Site / Area ID
