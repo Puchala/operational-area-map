@@ -94,7 +94,7 @@
             const radiusRow = definition && definition.type === 'Circle' && typeof definition.radius_meters === 'number'
               ? `<div class="popup-row"><strong>Definition:</strong> Circle — radius ${escapeHtml(formatRadius(definition.radius_meters))}</div>`
               : '';
-            const contact = p.coordination_contact ? `<div class="popup-contact"><strong>Contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : '';
+            const contact = p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : '';
             layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality)}</div>${radiusRow}<div class="popup-row"><strong>Effective:</strong> ${escapeHtml(p.effective_from || 'Not specified')}${p.effective_to ? ` to ${escapeHtml(p.effective_to)}` : ''}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${contact}<div class="popup-note">Informational awareness only — not an authorization or coordination determination.</div>`);
           }
         }).addTo(map);
