@@ -70,6 +70,7 @@
     const map = L.map('map', { zoomControl:true }).setView([37.38,-121.95], 11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap contributors' }).addTo(map);
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    const formatRadius = radiusMeters => radiusMeters >= 1000 ? (radiusMeters / 1000).toFixed(2) + ' km' : Math.round(radiusMeters) + ' m';
 
     fetch('operational-areas.geojson', { cache:'no-store' })
       .then(r => { if (!r.ok) throw new Error(`Map data returned HTTP ${r.status}`); return r.json(); })
@@ -89,8 +90,12 @@
           onEachFeature: (feature, layer) => {
             const p = feature.properties || {};
             const overlapWith = Array.isArray(p.potential_overlap_with) ? p.potential_overlap_with : [];
+            const definition = p.operational_area_definition || null;
+            const radiusRow = definition && definition.type === 'Circle' && typeof definition.radius_meters === 'number'
+              ? `<div class="popup-row"><strong>Definition:</strong> Circle — radius ${escapeHtml(formatRadius(definition.radius_meters))}</div>`
+              : '';
             const contact = p.coordination_contact ? `<div class="popup-contact"><strong>Contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : '';
-            layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality)}</div><div class="popup-row"><strong>Effective:</strong> ${escapeHtml(p.effective_from || 'Not specified')}${p.effective_to ? ` to ${escapeHtml(p.effective_to)}` : ''}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${contact}<div class="popup-note">Informational awareness only — not an authorization or coordination determination.</div>`);
+            layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality)}</div>${radiusRow}<div class="popup-row"><strong>Effective:</strong> ${escapeHtml(p.effective_from || 'Not specified')}${p.effective_to ? ` to ${escapeHtml(p.effective_to)}` : ''}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${contact}<div class="popup-note">Informational awareness only — not an authorization or coordination determination.</div>`);
           }
         }).addTo(map);
 
