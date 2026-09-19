@@ -44,19 +44,19 @@ Merge
 Shared Operational Area Map
 ```
 
-The repository now supports an operator-friendly submission path: an operator defines an area in the browser, submits the minimum metadata through the GitHub submission workflow, and GitHub Actions processes the submission through validation and publication.
+The repository now supports an operator-friendly submission path: an operator defines an area in the browser, opens a pre-populated GitHub Issue, and GitHub Actions processes the submission through validation and publication.
 
 ## Operator submission flow
 
 ### 1. Draw the area
 
-Open the **Operational Area Drawing Tool** on the GitHub Pages site. Draw a polygon, rectangle, or circle, review it, and copy the generated GeoJSON geometry.
+Open the **Operational Area Drawing Tool** on the GitHub Pages site. Draw a polygon, rectangle, or circle and review the generated geometry.
 
 The tool also calculates the center point and geographic bounds for convenience. For circles, it additionally captures the radius and preserves the center point + radius as the operational-area definition.
 
 ### 2. Submit the minimum information
 
-Complete the **Submit Operational Area** details in the drawing tool. The tool opens a GitHub Issue with the submission fields pre-populated.
+Complete the submission details in the drawing tool. The tool opens a GitHub Issue with the submission information pre-populated.
 
 - Operator ID
 - Site / Area ID
@@ -72,7 +72,7 @@ The form explicitly confirms that sensitive operational information should not b
 
 When the Issue is submitted, GitHub Actions:
 
-1. Parses the structured issue-form fields.
+1. Parses the structured submission fields.
 2. Validates the submitted geometry type and JSON structure.
 3. Creates an isolated submission branch.
 4. Creates or updates the operator/site GeoJSON file.
@@ -167,10 +167,9 @@ operational-area-map/
 │   └── operator-guide.md
 │
 ├── index.html
-├── submit-v2.html
 └── .github/
     ├── ISSUE_TEMPLATE/
-    │   └── operational-area.yml
+    │   └── operational-area.md
     ├── PULL_REQUEST_TEMPLATE.md
     └── workflows/
         ├── process-operational-area-submission.yml
