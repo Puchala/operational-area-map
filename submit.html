@@ -255,7 +255,7 @@
     if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
     if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
     const params = new URLSearchParams();
-    params.set('template', 'operational_area_submission.yml');
+    params.set('template', 'operational-area.yml');
     params.set('title', 'Operational Area: ' + operatorId + ' / ' + siteId);
     params.set('operator-id', operatorId);
     params.set('site-id', siteId);
