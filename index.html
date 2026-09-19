@@ -72,6 +72,38 @@
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
     const formatRadius = radiusMeters => (radiusMeters * 0.000621371).toFixed(2) + ' mi';
 
+    const geocodeCache = new Map();
+    let lastGeocodeAt = 0;
+
+    function formatAddress(address, displayName) {
+      if (!address) return displayName || 'Address not available';
+      const parts = [
+        address.house_number && address.road ? `${address.house_number} ${address.road}` : address.road,
+        address.neighbourhood || address.suburb,
+        address.city || address.town || address.village || address.municipality,
+        address.state,
+        address.postcode
+      ].filter(Boolean);
+      return parts.join(', ') || displayName || 'Address not available';
+    }
+
+    async function reverseGeocode(lat, lng) {
+      const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+      if (geocodeCache.has(key)) return geocodeCache.get(key);
+
+      const waitMs = Math.max(0, 1000 - (Date.now() - lastGeocodeAt));
+      if (waitMs) await new Promise(resolve => setTimeout(resolve, waitMs));
+      lastGeocodeAt = Date.now();
+
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) throw new Error(`Reverse geocoding returned HTTP ${response.status}`);
+      const result = await response.json();
+      const address = formatAddress(result.address, result.display_name);
+      geocodeCache.set(key, address);
+      return address;
+    }
+
     fetch('operational-areas.geojson', { cache:'no-store' })
       .then(r => { if (!r.ok) throw new Error(`Map data returned HTTP ${r.status}`); return r.json(); })
       .then(data => {
@@ -99,7 +131,19 @@
               ? `<div class="popup-row"><strong>Definition:</strong> Circle — radius ${escapeHtml(formatRadius(definition.radius_meters))}</div>`
               : '';
             const contact = p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : '';
-            layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality)}</div>${centerRow}${radiusRow}<div class="popup-row"><strong>Effective:</strong> ${escapeHtml(p.effective_from || 'Not specified')}${p.effective_to ? ` to ${escapeHtml(p.effective_to)}` : ''}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${contact}<div class="popup-note">Informational awareness only — not an authorization or coordination determination.</div>`);
+            const addressId = `address-${L.Util.stamp(layer)}`;
+            layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality)}</div>${centerRow}<div class="popup-row"><strong>Address:</strong> <span id="${addressId}">Loading…</span></div>${radiusRow}<div class="popup-row"><strong>Effective:</strong> ${escapeHtml(p.effective_from || 'Not specified')}${p.effective_to ? ` to ${escapeHtml(p.effective_to)}` : ''}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${contact}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the center point.</div>`);
+
+            layer.on('popupopen', async () => {
+              const element = document.getElementById(addressId);
+              if (!element || !center || typeof center.latitude !== 'number' || typeof center.longitude !== 'number') return;
+              try {
+                element.textContent = await reverseGeocode(center.latitude, center.longitude);
+              } catch (error) {
+                console.error('Reverse geocoding failed:', error);
+                element.textContent = 'Address not available';
+              }
+            });
           }
         }).addTo(map);
 
