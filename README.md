@@ -14,7 +14,7 @@ A GitHub-native proof of concept for publishing **minimum necessary UAS operatio
 | 🗺️ **View the Shared Operational Area Map** | [Open the Map](https://puchala.github.io/operational-area-map/) |
 | ✏️ **Submit an Operational Area** | [Open the Submission Tool](https://puchala.github.io/operational-area-map/submit.html) |
 
-**Typical flow:** Draw your operational area → submit the minimum required information → GitHub Actions validates and processes the submission → the published area appears on the shared map.
+**Typical flow:** Draw or define your operational area → submit the minimum required information → GitHub Actions validates and processes the submission → the published area appears on the shared map.
 
 ## 🗺️ What this demonstrates
 
@@ -44,15 +44,15 @@ Merge
 Shared Operational Area Map
 ```
 
-The repository now supports an operator-friendly submission path: an operator draws an area in the browser, submits the minimum metadata through a GitHub Issue Form, and GitHub Actions converts the submission into a draft Pull Request. Publication still requires validation and human review.
+The repository now supports an operator-friendly submission path: an operator defines an area in the browser, submits the minimum metadata through a GitHub Issue Form, and GitHub Actions converts the submission into a draft Pull Request. Publication still requires validation and human review.
 
 ## Operator submission flow
 
 ### 1. Draw the area
 
-Open the **Operational Area Drawing Tool** on the GitHub Pages site. Draw a polygon or rectangle, review it, and copy the generated GeoJSON geometry.
+Open the **Operational Area Drawing Tool** on the GitHub Pages site. Draw a polygon, rectangle, or circle, review it, and copy the generated GeoJSON geometry.
 
-The tool also calculates the center point and geographic bounds for convenience.
+The tool also calculates the center point and geographic bounds for convenience. For circles, it additionally captures the radius and preserves the center point + radius as the operational-area definition.
 
 ### 2. Submit the minimum information
 
@@ -61,12 +61,12 @@ Open the **Submit Operational Area** Issue Form and provide:
 - Operator ID
 - Site / Area ID
 - Metro / Locality
-- Generated Polygon / MultiPolygon geometry
+- Generated Polygon / MultiPolygon geometry, including a polygon approximation for circles
 - Optional center point and geographic bounds
 - Optional coordination contact
 - Optional effective dates
 
-The form explicitly confirms that sensitive operational information should not be submitted.
+The form explicitly confirms that sensitive operational information should not be submitted. For circular areas, the center point and radius are preserved as the operational-area definition while a GeoJSON polygon approximation is generated for interoperability and overlap analysis.
 
 ### 3. Automatic PR creation
 
@@ -121,9 +121,9 @@ The POC intentionally limits the published information to what is useful for ove
 | Site / Area ID | Yes | Identifies the published area |
 | Metro / Locality | Yes | Provides human-readable geographic context |
 | Operational Area Geometry | Yes | Shows the geographic area |
-| Center Point | Optional | Useful for quick geographic reference |
+| Center Point | Optional | Useful for quick geographic reference; defines the center of a circle when used |
 | Geographic Bounds | Optional | Useful for discovery/filtering |
-| Coordination Contact | Optional | Allows operators to initiate follow-up |
+| Operational Area Definition | Optional | Preserves a circle center point and radius when the area is circular |\n| Coordination Contact | Optional | Allows operators to initiate follow-up |
 | Time Information | Optional | Indicates the effective period when provided |
 
 ## 🔒 Information intentionally not published
