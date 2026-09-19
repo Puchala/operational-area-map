@@ -56,7 +56,7 @@
       <div class="field"><span>Radius</span><strong id="radius">Only applicable to circles</strong></div>
     </div>
     <textarea id="output" readonly aria-label="Generated GeoJSON geometry" placeholder="Your generated Polygon or MultiPolygon geometry will appear here."></textarea>
-    <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Copy Submission & Open GitHub</strong>. The submission text will be copied to your clipboard and GitHub will open a new Issue where you can paste it and submit.</p>
+    <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Open Prefilled GitHub Submission</strong>. The submission text will be copied to your clipboard and GitHub will open a new Issue where you can paste it and submit.</p>
     <p class="circle-note" style="color:#64748b;font-size:13px;margin-bottom:0;">For a circle, the <strong>center point and radius</strong> are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.</p>
   </section>
 
@@ -81,7 +81,7 @@
       <label style="font-size:13px;font-weight:600;"><input id="minimumInfo" type="checkbox"> I confirm this contains only the minimum necessary information for geographic overlap awareness and no sensitive operational details.</label>
       <label style="font-size:13px;font-weight:600;"><input id="authorized" type="checkbox"> I confirm I am authorized to publish this operational-area information on behalf of the operator.</label>
     </div>
-    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Copy Submission & Open GitHub</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
+    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Open Prefilled GitHub Submission</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
     <div id="submissionStatus" class="notice" style="display:none;margin-top:14px;"></div>
   </section>
 
@@ -224,28 +224,56 @@
     const siteId = document.getElementById('siteId').value.trim();
     const metro = document.getElementById('metroLocality').value.trim();
     const geometry = submissionGeometry.value.trim();
-    if (!operatorId || !siteId || !metro || !geometry) throw new Error('Complete the required fields and draw an operational area first.');
+    if (!operatorId || !siteId || !metro) throw new Error('Complete the required fields first.');
     if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
+    if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
     const lines = [];
     lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->','');
     lines.push('### Operator ID', operatorId, '');
     lines.push('### Site / Area ID', siteId, '');
     lines.push('### Metro / Locality', metro, '');
-    lines.push('### Operational Area Geometry','```json',geometry,'```','');
-    lines.push('### Operational Area Definition (optional)');
-    if (circleDefinition) {
-      lines.push('```json', JSON.stringify(circleDefinition, null, 2), '```');
-    }
-    lines.push('');
+    if (geometry) lines.push('### Operational Area Geometry', fence + 'json', geometry, fence, '');
+    if (circleDefinition) lines.push('### Operational Area Definition (optional)', fence + 'json', JSON.stringify(circleDefinition, null, 2), fence, '');
     lines.push('### Center Point (optional)', centerPointInput.value.trim(), '');
-    lines.push('### Geographic Bounds (optional)','```json',boundsInput.value.trim(),'```','');
-    lines.push('### Coordination Contact Name (optional)',document.getElementById('contactName').value.trim(),'');
-    lines.push('### Coordination Contact Email (optional)',document.getElementById('contactEmail').value.trim(),'');
-    lines.push('### Coordination Contact Phone (optional)',document.getElementById('contactPhone').value.trim(),'');
-    lines.push('### Effective From (optional)',document.getElementById('effectiveFrom').value.trim(),'');
-    lines.push('### Effective To (optional)',document.getElementById('effectiveTo').value.trim(),'');
-    lines.push('### Publication confirmation','- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.','- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
+    lines.push('### Geographic Bounds (optional)', fence + 'json', boundsInput.value.trim(), fence, '');
+    lines.push('### Coordination Contact Name (optional)', document.getElementById('contactName').value.trim(), '');
+    lines.push('### Coordination Contact Email (optional)', document.getElementById('contactEmail').value.trim(), '');
+    lines.push('### Coordination Contact Phone (optional)', document.getElementById('contactPhone').value.trim(), '');
+    lines.push('### Effective From (optional)', document.getElementById('effectiveFrom').value.trim(), '');
+    lines.push('### Effective To (optional)', document.getElementById('effectiveTo').value.trim(), '');
+    lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
     return lines.join('\n');
+  }
+
+  function buildGitHubIssueUrl() {
+    const operatorId = document.getElementById('operatorId').value.trim();
+    const siteId = document.getElementById('siteId').value.trim();
+    const metro = document.getElementById('metroLocality').value.trim();
+    const geometry = submissionGeometry.value.trim();
+    if (!operatorId || !siteId || !metro) throw new Error('Complete the required fields first.');
+    if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
+    if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
+    const params = new URLSearchParams();
+    params.set('template', 'operational-area.yml');
+    params.set('title', 'Operational Area: ' + operatorId + ' / ' + siteId);
+    params.set('operator-id', operatorId);
+    params.set('site-id', siteId);
+    params.set('metro-locality', metro);
+    if (circleDefinition) params.set('operational-area-definition', JSON.stringify(circleDefinition));
+    else params.set('geometry', geometry);
+    if (centerPointInput.value.trim()) params.set('center-point', centerPointInput.value.trim());
+    if (boundsInput.value.trim()) params.set('geographic-bounds', boundsInput.value.trim());
+    const contactName = document.getElementById('contactName').value.trim();
+    const contactEmail = document.getElementById('contactEmail').value.trim();
+    const contactPhone = document.getElementById('contactPhone').value.trim();
+    const effectiveFrom = document.getElementById('effectiveFrom').value.trim();
+    const effectiveTo = document.getElementById('effectiveTo').value.trim();
+    if (contactName) params.set('contact-name', contactName);
+    if (contactEmail) params.set('contact-email', contactEmail);
+    if (contactPhone) params.set('contact-phone', contactPhone);
+    if (effectiveFrom) params.set('effective-from', effectiveFrom);
+    if (effectiveTo) params.set('effective-to', effectiveTo);
+    return 'https://github.com/Puchala/operational-area-map/issues/new?' + params.toString();
   }
 
   function updateSubmissionButtons() {
@@ -267,27 +295,11 @@
 
   document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
   document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
-  createGithubSubmission.addEventListener('click', async () => {
+  createGithubSubmission.addEventListener('click', () => {
     try {
-      const body = buildSubmissionText();
-      const title = 'Operational Area: ' + document.getElementById('operatorId').value.trim() + ' / ' + document.getElementById('siteId').value.trim();
-      try {
-        await navigator.clipboard.writeText(body);
-      } catch {
-        const helper = document.createElement('textarea');
-        helper.value = body;
-        helper.style.position = 'fixed';
-        helper.style.opacity = '0';
-        document.body.appendChild(helper);
-        helper.focus();
-        helper.select();
-        const copied = document.execCommand('copy');
-        helper.remove();
-        if (!copied) throw new Error('Unable to copy the submission text. Please use Copy Submission Text first.');
-      }
-      const url = 'https://github.com/Puchala/operational-area-map/issues/new?title=' + encodeURIComponent(title);
+      const url = buildGitHubIssueUrl();
       window.open(url, '_blank', 'noopener,noreferrer');
-      submissionStatus.textContent = 'Submission text copied to your clipboard. Paste it into the GitHub Issue, then click Create issue.';
+      submissionStatus.textContent = 'GitHub is open with the submission pre-populated. Review the fields and click Create issue.';
       submissionStatus.style.display = 'block';
     } catch (e) {
       submissionStatus.textContent = e.message;
