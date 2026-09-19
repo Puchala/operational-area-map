@@ -56,7 +56,7 @@
       <div class="field"><span>Radius</span><strong id="radius">Only applicable to circles</strong></div>
     </div>
     <textarea id="output" readonly aria-label="Generated GeoJSON geometry" placeholder="Your generated Polygon or MultiPolygon geometry will appear here."></textarea>
-    <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Create GitHub Submission</strong>. GitHub will open a prefilled publication request for final review and submission.</p>
+    <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Copy Submission & Open GitHub</strong>. The submission text will be copied to your clipboard and GitHub will open a new Issue where you can paste it and submit.</p>
     <p class="circle-note" style="color:#64748b;font-size:13px;margin-bottom:0;">For a circle, the <strong>center point and radius</strong> are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.</p>
   </section>
 
@@ -81,7 +81,7 @@
       <label style="font-size:13px;font-weight:600;"><input id="minimumInfo" type="checkbox"> I confirm this contains only the minimum necessary information for geographic overlap awareness and no sensitive operational details.</label>
       <label style="font-size:13px;font-weight:600;"><input id="authorized" type="checkbox"> I confirm I am authorized to publish this operational-area information on behalf of the operator.</label>
     </div>
-    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Create GitHub Submission</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
+    <div class="actions"><button id="createGithubSubmission" class="primary" disabled>Copy Submission & Open GitHub</button><button id="copySubmissionText" class="secondary" disabled>Copy Submission Text</button></div>
     <div id="submissionStatus" class="notice" style="display:none;margin-top:14px;"></div>
   </section>
 
@@ -267,15 +267,32 @@
 
   document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
   document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
-  createGithubSubmission.addEventListener('click', () => {
+  createGithubSubmission.addEventListener('click', async () => {
     try {
       const body = buildSubmissionText();
       const title = 'Operational Area: ' + document.getElementById('operatorId').value.trim() + ' / ' + document.getElementById('siteId').value.trim();
-      const url = 'https://github.com/Puchala/operational-area-map/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(body);
+      try {
+        await navigator.clipboard.writeText(body);
+      } catch {
+        const helper = document.createElement('textarea');
+        helper.value = body;
+        helper.style.position = 'fixed';
+        helper.style.opacity = '0';
+        document.body.appendChild(helper);
+        helper.focus();
+        helper.select();
+        const copied = document.execCommand('copy');
+        helper.remove();
+        if (!copied) throw new Error('Unable to copy the submission text. Please use Copy Submission Text first.');
+      }
+      const url = 'https://github.com/Puchala/operational-area-map/issues/new?title=' + encodeURIComponent(title);
       window.open(url, '_blank', 'noopener,noreferrer');
-      submissionStatus.textContent = 'GitHub is open with the submission prefilled. Review it and click Create issue.';
+      submissionStatus.textContent = 'Submission text copied to your clipboard. Paste it into the GitHub Issue, then click Create issue.';
       submissionStatus.style.display = 'block';
-    } catch (e) { submissionStatus.textContent = e.message; submissionStatus.style.display = 'block'; }
+    } catch (e) {
+      submissionStatus.textContent = e.message;
+      submissionStatus.style.display = 'block';
+    }
   });
 
   copySubmissionText.addEventListener('click', async () => {
