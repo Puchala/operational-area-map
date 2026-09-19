@@ -28,6 +28,21 @@ for path in sorted((ROOT / "operational-areas").glob("*/*.geojson")):
         if geom.is_empty:
             errors.append(f"{path}: geometry is empty")
 
+        definition = data["properties"].get("operational_area_definition")
+        if definition and definition.get("type") == "Circle":
+            definition_center = definition.get("center_point", {})
+            stored_center = data["properties"].get("center_point", {})
+            if stored_center and (
+                abs(stored_center.get("latitude", 999) - definition_center.get("latitude", 999)) > 1e-5
+                or abs(stored_center.get("longitude", 999) - definition_center.get("longitude", 999)) > 1e-5
+            ):
+                errors.append(f"{path}: center_point does not match operational_area_definition")
+            radius = definition.get("radius_meters")
+            if not isinstance(radius, (int, float)) or isinstance(radius, bool) or radius <= 0:
+                errors.append(f"{path}: circle radius_meters must be greater than 0")
+            elif radius > 20000000:
+                errors.append(f"{path}: circle radius_meters exceeds 20000000")
+
         def safe_id(value):
             value = "".join("-" if not (char.isalnum() or char in "._-") else char for char in value)
             while "--" in value:
