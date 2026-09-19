@@ -31,7 +31,7 @@
     .notice { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 12px 14px; border-radius: 8px; }
     @media (max-width: 720px) { .steps, .meta { grid-template-columns: 1fr; } main { padding: 14px; } #map { height: 460px; } }
   </style>
-  <!-- submission-flow-version: 2026-09-19.1 -->
+  <!-- submission-flow-version: 2026-09-19.2 -->
 </head>
 <body>
 <header><div class="wrap"><h1>Operational Area Submission</h1><p>Draw the minimum geographic area needed for overlap awareness, then submit it through the GitHub review workflow.</p></div></header>
@@ -276,15 +276,15 @@
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   }
 
-  async function encodeSubmissionPayload(payload) {
-    if (!window.CompressionStream) throw new Error('This browser does not support the secure submission format. Please use a current Chrome, Edge, Safari, or Firefox release.');
+  function encodeSubmissionPayload(payload) {
     const json = JSON.stringify(payload);
-    const stream = new CompressionStream('gzip');
-    const writer = stream.writable.getWriter();
-    await writer.write(new TextEncoder().encode(json));
-    await writer.close();
-    const compressed = new Uint8Array(await new Response(stream.readable).arrayBuffer());
-    return bytesToBase64Url(compressed);
+    const bytes = new TextEncoder().encode(json);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
   }
 
   function buildIssueBody(payloadToken, payload) {
@@ -307,15 +307,14 @@
     lines.push('### Coordination Contact Phone (optional)', payload.coordination_contact_phone || '', '');
     lines.push('### Effective From (optional)', payload.effective_from || '', '');
     lines.push('### Effective To (optional)', payload.effective_to || '', '');
-    lines.push('<!-- OAM1:' + payloadToken + ' -->');
-    lines.push('');
+    lines.push('<!-- OAM2:' + payloadToken + ' -->', '');
     lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
     return lines.join('\\n');
   }
 
-  async function buildGitHubIssueUrl() {
+  function buildGitHubIssueUrl() {
     const payload = buildSubmissionPayload();
-    const payloadToken = await encodeSubmissionPayload(payload);
+    const payloadToken = encodeSubmissionPayload(payload);
     const title = 'Operational Area: ' + payload.operator_id + ' / ' + payload.site_id;
     const body = buildIssueBody(payloadToken, payload);
     const params = new URLSearchParams();
@@ -324,7 +323,7 @@
     params.set('body', body);
     const url = 'https://github.com/Puchala/operational-area-map/issues/new?' + params.toString();
     if (url.length > 7500) {
-      throw new Error('This submission is too large for a GitHub URL. Please simplify the geometry or use Copy Submission Text.');
+      throw new Error('This submission is too large for a GitHub URL. Please use Copy Submission Text for this geometry.');
     }
     return url;
   }
@@ -348,15 +347,12 @@
 
   document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
   document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
-  createGithubSubmission.addEventListener('click', async () => {
+  createGithubSubmission.addEventListener('click', () => {
     try {
       createGithubSubmission.disabled = true;
       createGithubSubmission.textContent = 'Opening GitHub...';
-      const url = await buildGitHubIssueUrl();
-
-      // Navigate in the same tab so the browser cannot block the transition
-      // after the asynchronous payload encoding step.
-      window.location.assign(url);
+      const url = buildGitHubIssueUrl();
+      window.location.href = url;
     } catch (e) {
       createGithubSubmission.textContent = 'Open GitHub Submission';
       submissionStatus.textContent = e.message;
