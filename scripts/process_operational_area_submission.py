@@ -185,6 +185,11 @@ def main():
             fail(f'Embedded submission payload is invalid: {exc}')
 
     if payload is not None:
+        if payload.get('version') != 1:
+            fail('Unsupported embedded submission payload version.')
+        if payload.get('confirm_minimum_info') is not True or payload.get('authorized') is not True:
+            fail('Submission confirmation requirements were not satisfied.')
+
         operator_id = clean(payload.get('operator_id'))
         site_id = clean(payload.get('site_id'))
         metro = clean(payload.get('metro_locality'))
