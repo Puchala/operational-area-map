@@ -2,6 +2,7 @@
 """Process a structured operational-area GitHub Issue into a PR."""
 
 import base64
+import gzip
 import json
 import math
 import os
@@ -172,129 +173,191 @@ def main():
     issue_url = issue.get("html_url", "")
     body = issue.get("body") or ""
 
-    operator_id = clean(field(body, "Operator ID", required=True))
-    site_id = clean(field(body, "Site / Area ID", required=True))
-    metro = clean(field(body, "Metro / Locality", required=True))
-    geometry_raw = strip_code_fence(field(body, "Operational Area Geometry"))
-    center_raw = clean(field(body, "Center Point (optional)"))
-    bounds_raw = strip_code_fence(field(body, "Geographic Bounds (optional)"))
-    definition_raw = strip_code_fence(field(body, "Operational Area Definition (optional)"))
-    contact_name = clean(field(body, "Coordination Contact Name (optional)"))
-    contact_email = clean(field(body, "Coordination Contact Email (optional)"))
-    contact_phone = clean(field(body, "Coordination Contact Phone (optional)"))
-    effective_from = clean(field(body, "Effective From (optional)"))
-    effective_to = clean(field(body, "Effective To (optional)"))
-
-    geometry = None
-    if geometry_raw:
+    payload_match = re.search(r'<!--\s*OAM1:([A-Za-z0-9_-]+)\s*-->', body)
+    payload = None
+    if payload_match:
+        token = payload_match.group(1)
         try:
-            geometry = json.loads(geometry_raw)
-        except json.JSONDecodeError:
-            fail("Operational Area Geometry is not valid JSON.")
+            padded = token + ('=' * (-len(token) % 4))
+            compressed = base64.urlsafe_b64decode(padded.encode('ascii'))
+            payload = json.loads(gzip.decompress(compressed).decode('utf-8'))
+        except (ValueError, OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            fail(f'Embedded submission payload is invalid: {exc}')
 
-        if (
-            not isinstance(geometry, dict)
-            or geometry.get("type") not in ("Polygon", "MultiPolygon")
-            or not isinstance(geometry.get("coordinates"), list)
-        ):
-            fail("Geometry must be a GeoJSON Polygon or MultiPolygon.")
+    if payload is not None:
+        operator_id = clean(payload.get('operator_id'))
+        site_id = clean(payload.get('site_id'))
+        metro = clean(payload.get('metro_locality'))
+        geometry = payload.get('geometry')
+        operational_area_definition = payload.get('operational_area_definition')
+        center_raw = clean(payload.get('center_point')) if isinstance(payload.get('center_point'), str) else ''
+        bounds = payload.get('geographic_bounds')
+        contact_name = clean(payload.get('coordination_contact_name'))
+        contact_email = clean(payload.get('coordination_contact_email'))
+        contact_phone = clean(payload.get('coordination_contact_phone'))
+        effective_from = clean(payload.get('effective_from'))
+        effective_to = clean(payload.get('effective_to'))
+    else:
+        operator_id = clean(field(body, 'Operator ID', required=True))
+        site_id = clean(field(body, 'Site / Area ID', required=True))
+        metro = clean(field(body, 'Metro / Locality', required=True))
+        geometry_raw = strip_code_fence(field(body, 'Operational Area Geometry'))
+        center_raw = clean(field(body, 'Center Point (optional)'))
+        bounds_raw = strip_code_fence(field(body, 'Geographic Bounds (optional)'))
+        definition_raw = strip_code_fence(field(body, 'Operational Area Definition (optional)'))
+        contact_name = clean(field(body, 'Coordination Contact Name (optional)'))
+        contact_email = clean(field(body, 'Coordination Contact Email (optional)'))
+        contact_phone = clean(field(body, 'Coordination Contact Phone (optional)'))
+        effective_from = clean(field(body, 'Effective From (optional)'))
+        effective_to = clean(field(body, 'Effective To (optional)'))
 
-    bounds = None
-    if bounds_raw:
-        try:
-            bounds = json.loads(bounds_raw)
-        except json.JSONDecodeError:
-            fail("Geographic Bounds must be valid JSON.")
+        geometry = None
+        if geometry_raw:
+            try:
+                geometry = json.loads(geometry_raw)
+            except json.JSONDecodeError:
+                fail('Operational Area Geometry is not valid JSON.')
 
-    center_point = None
-    if center_raw:
-        parts = [part.strip() for part in center_raw.split(",")]
-        if len(parts) != 2:
-            fail("Center Point must be latitude,longitude.")
-        try:
-            center_point = {
-                "latitude": float(parts[0]),
-                "longitude": float(parts[1]),
-            }
-        except ValueError:
-            fail("Center Point must be latitude,longitude.")
-
-    operational_area_definition = None
-    if definition_raw:
-        try:
-            operational_area_definition = json.loads(definition_raw)
-        except json.JSONDecodeError:
-            fail("Operational Area Definition must be valid JSON.")
-
-        if not isinstance(operational_area_definition, dict):
-            fail("Operational Area Definition must be a JSON object.")
-
-        if operational_area_definition.get("type") != "Circle":
-            fail("Operational Area Definition type must be Circle.")
-
-        definition_center = operational_area_definition.get("center_point")
-        radius_meters = operational_area_definition.get("radius_meters")
-
-        if (
-            not isinstance(definition_center, dict)
-            or not isinstance(definition_center.get("latitude"), (int, float))
-            or not isinstance(definition_center.get("longitude"), (int, float))
-        ):
-            fail("Circle definition must include a valid center_point.")
-
-        if (
-            definition_center["latitude"] < -90
-            or definition_center["latitude"] > 90
-            or definition_center["longitude"] < -180
-            or definition_center["longitude"] > 180
-        ):
-            fail("Circle center_point is outside valid latitude/longitude ranges.")
-
-        if (
-            not isinstance(radius_meters, (int, float))
-            or isinstance(radius_meters, bool)
-            or radius_meters <= 0
-            or radius_meters > 20000000
-        ):
-            fail("Circle radius_meters must be greater than 0 and no more than 20000000.")
-
-        if center_point is not None:
             if (
-                abs(center_point["latitude"] - definition_center["latitude"]) > 1e-5
-                or abs(center_point["longitude"] - definition_center["longitude"]) > 1e-5
+                not isinstance(geometry, dict)
+                or geometry.get('type') not in ('Polygon', 'MultiPolygon')
+                or not isinstance(geometry.get('coordinates'), list)
             ):
-                fail("Center Point does not match the circle definition center_point.")
+                fail('Geometry must be a GeoJSON Polygon or MultiPolygon.')
 
-        center_point = {
-            "latitude": float(definition_center["latitude"]),
-            "longitude": float(definition_center["longitude"]),
-        }
+        bounds = None
+        if bounds_raw:
+            try:
+                bounds = json.loads(bounds_raw)
+            except json.JSONDecodeError:
+                fail('Geographic Bounds must be valid JSON.')
 
-        geometry = circle_to_polygon(
-            center_point["latitude"],
-            center_point["longitude"],
-            float(radius_meters),
-        )
+        operational_area_definition = None
+        if definition_raw:
+            try:
+                operational_area_definition = json.loads(definition_raw)
+            except json.JSONDecodeError:
+                fail('Operational Area Definition must be valid JSON.')
 
-        operational_area_definition = {
-            "type": "Circle",
-            "center_point": {
-                "latitude": center_point["latitude"],
-                "longitude": center_point["longitude"],
-            },
-            "radius_meters": round(float(radius_meters), 2),
-        }
+    if not operator_id or not site_id or not metro:
+        fail('Operator ID, Site / Area ID, and Metro / Locality are required.')
 
-    if geometry is None and operational_area_definition is None:
-        fail("Provide Operational Area Geometry or a Circle Operational Area Definition.")
+    if payload is not None:
+        if geometry is not None and (
+            not isinstance(geometry, dict)
+            or geometry.get('type') not in ('Polygon', 'MultiPolygon')
+            or not isinstance(geometry.get('coordinates'), list)
+        ):
+            fail('Embedded geometry must be a GeoJSON Polygon or MultiPolygon.')
 
-    if geometry is None and operational_area_definition is not None:
-        geometry = circle_to_polygon(
-            operational_area_definition["center_point"]["latitude"],
-            operational_area_definition["center_point"]["longitude"],
-            operational_area_definition["radius_meters"],
-        )
+        if operational_area_definition is not None:
+            if not isinstance(operational_area_definition, dict):
+                fail('Embedded operational area definition must be a JSON object.')
+            if operational_area_definition.get('type') != 'Circle':
+                fail('Embedded operational area definition type must be Circle.')
+            definition_center = operational_area_definition.get('center_point')
+            radius_meters = operational_area_definition.get('radius_meters')
+            if (
+                not isinstance(definition_center, dict)
+                or not isinstance(definition_center.get('latitude'), (int, float))
+                or not isinstance(definition_center.get('longitude'), (int, float))
+            ):
+                fail('Circle definition must include a valid center_point.')
+            if (
+                definition_center['latitude'] < -90
+                or definition_center['latitude'] > 90
+                or definition_center['longitude'] < -180
+                or definition_center['longitude'] > 180
+            ):
+                fail('Circle center_point is outside valid latitude/longitude ranges.')
+            if (
+                not isinstance(radius_meters, (int, float))
+                or isinstance(radius_meters, bool)
+                or radius_meters <= 0
+                or radius_meters > 20000000
+            ):
+                fail('Circle radius_meters must be greater than 0 and no more than 20000000.')
+            center_point = {
+                'latitude': float(definition_center['latitude']),
+                'longitude': float(definition_center['longitude']),
+            }
+            geometry = circle_to_polygon(
+                center_point['latitude'], center_point['longitude'], float(radius_meters)
+            )
+            operational_area_definition = {
+                'type': 'Circle',
+                'center_point': center_point,
+                'radius_meters': round(float(radius_meters), 2),
+            }
+        else:
+            center_point = None
+            if center_raw:
+                parts = [part.strip() for part in center_raw.split(',')]
+                if len(parts) == 2:
+                    try:
+                        center_point = {'latitude': float(parts[0]), 'longitude': float(parts[1])}
+                    except ValueError:
+                        fail('Center Point must be latitude,longitude.')
+            if center_point is not None and geometry is not None:
+                pass
+    else:
+        center_point = None
+        if center_raw:
+            parts = [part.strip() for part in center_raw.split(',')]
+            if len(parts) != 2:
+                fail('Center Point must be latitude,longitude.')
+            try:
+                center_point = {'latitude': float(parts[0]), 'longitude': float(parts[1])}
+            except ValueError:
+                fail('Center Point must be latitude,longitude.')
 
+        if operational_area_definition:
+            if not isinstance(operational_area_definition, dict):
+                fail('Operational Area Definition must be a JSON object.')
+            if operational_area_definition.get('type') != 'Circle':
+                fail('Operational Area Definition type must be Circle.')
+            definition_center = operational_area_definition.get('center_point')
+            radius_meters = operational_area_definition.get('radius_meters')
+            if (
+                not isinstance(definition_center, dict)
+                or not isinstance(definition_center.get('latitude'), (int, float))
+                or not isinstance(definition_center.get('longitude'), (int, float))
+            ):
+                fail('Circle definition must include a valid center_point.')
+            if (
+                definition_center['latitude'] < -90
+                or definition_center['latitude'] > 90
+                or definition_center['longitude'] < -180
+                or definition_center['longitude'] > 180
+            ):
+                fail('Circle center_point is outside valid latitude/longitude ranges.')
+            if (
+                not isinstance(radius_meters, (int, float))
+                or isinstance(radius_meters, bool)
+                or radius_meters <= 0
+                or radius_meters > 20000000
+            ):
+                fail('Circle radius_meters must be greater than 0 and no more than 20000000.')
+            if center_point is not None and (
+                abs(center_point['latitude'] - definition_center['latitude']) > 1e-5
+                or abs(center_point['longitude'] - definition_center['longitude']) > 1e-5
+            ):
+                fail('Center Point does not match the circle definition center_point.')
+            center_point = {
+                'latitude': float(definition_center['latitude']),
+                'longitude': float(definition_center['longitude']),
+            }
+            geometry = circle_to_polygon(
+                center_point['latitude'], center_point['longitude'], float(radius_meters)
+            )
+            operational_area_definition = {
+                'type': 'Circle',
+                'center_point': center_point,
+                'radius_meters': round(float(radius_meters), 2),
+            }
+
+    if geometry is None:
+        fail('Provide Operational Area Geometry or a Circle Operational Area Definition.')
     safe_operator = safe_filename(operator_id)
     safe_site = safe_filename(site_id)
     if not safe_operator or not safe_site:
