@@ -14,6 +14,7 @@ on:
       - "scripts/fix_circle_input_state.py"
       - "scripts/fix_github_submission_preview.py"
       - "scripts/fix_multicircle_popup_behavior.py"
+      - "scripts/fix_multicircle_visual_rendering.py"
       - "scripts/fix_geometry_overlap_ui.py"
       - "scripts/fix_popup_overlap_wording.py"
       - "scripts/remove_redundant_operational_status.py"
@@ -62,6 +63,7 @@ jobs:
           python scripts/fix_circle_input_state.py _site/submit.html
           python scripts/fix_github_submission_preview.py _site/submit.html
           python scripts/fix_multicircle_popup_behavior.py _site/index.html
+          python scripts/fix_multicircle_visual_rendering.py _site/index.html
           python scripts/fix_geometry_overlap_ui.py _site/index.html
           python scripts/fix_popup_overlap_wording.py _site/index.html
           python scripts/remove_redundant_operational_status.py _site/index.html
@@ -86,6 +88,7 @@ jobs:
           grep -Fq "potential_overlap_components" _site/index.html
           grep -Fq "selectedPolygonIndex" _site/index.html
           grep -Fq "Actual overlap:" _site/index.html
+          grep -Fq "multicircle-visual-rendering-fix: 2026-09-21" _site/index.html
           if grep -Fq "Operational-area status:" _site/index.html; then
             echo "ERROR: redundant operational-area status remains in popup"
             exit 1
