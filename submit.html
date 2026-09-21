@@ -8,9 +8,9 @@
 <body>
   <p style="font-family:system-ui;padding:24px">Loading Operational Area Submission Tool…</p>
   <script>
-    // Pin the known-good full submission tool to a real Git commit. The previous
-    // value was a blob SHA, which raw.githubusercontent.com cannot serve as a ref.
-    const SOURCE = 'https://raw.githubusercontent.com/Puchala/operational-area-map/1c9051c49eec9511dc488262b3c7ad6d1463c8da/submit.html';
+    // Load the known-good full submission tool from jsDelivr. This avoids the
+    // raw.githubusercontent.com loading path that can leave the page stuck.
+    const SOURCE = 'https://cdn.jsdelivr.net/gh/Puchala/operational-area-map@1c9051c49eec9511dc488262b3c7ad6d1463c8da/submit.html';
 
     function toBase64Url(value) {
       const bytes = new TextEncoder().encode(value);
@@ -93,7 +93,9 @@
         document.close();
       })
       .catch(error => {
-        document.body.innerHTML = '<p style="font-family:system-ui;padding:24px;color:#991b1b">' + error.message.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</p>';
+        document.body.innerHTML = '<p style="font-family:system-ui;padding:24px;color:#991b1b">' +
+          error.message.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) +
+          '</p>';
       });
   </script>
 </body>
