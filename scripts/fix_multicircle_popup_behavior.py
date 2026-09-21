@@ -9,18 +9,19 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 marker = "<!-- multicircle-popup-fix: 2026-09-21 -->"
-if marker in text:
-    # Allow the patch script itself to evolve while preserving idempotency on a built page.
-    if "layer.eachLayer(childLayer =>" not in text:
-        print("MultiCircle popup behavior already patched.")
-        raise SystemExit(0)
 
 pattern = re.compile(
-    r'''            const centerRow = center && typeof center\.latitude === 'number'.*?\n            const markerCenters = definition\?\.type === 'MultiCircle' ''',
+    r'''            const centerRow = center && typeof center\\.latitude === 'number'.*?\n            const markerCenters = definition\\?\\.type === 'MultiCircle' ''',
     re.S,
 )
+
+# The built page may already contain the previous implementation. Replace the whole
+# popup block so the generated page is deterministic and the patch remains idempotent.
 match = pattern.search(text)
 if not match:
+    if marker in text and "const selectedCircleIndex" in text:
+        print("MultiCircle popup behavior already patched.")
+        raise SystemExit(0)
     raise SystemExit("Could not locate the existing popup/center-marker block in index.html")
 
 replacement = '''            const validCenters = definition?.type === 'MultiCircle' && Array.isArray(definition.circles)
@@ -82,37 +83,94 @@ replacement = '''            const validCenters = definition?.type === 'MultiCir
               return {
                 addressId,
                 center: popupCenter,
-                html: `<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality || 'Not specified')}</div>${selected ? `<div class="popup-row"><strong>Selected circle:</strong> Circle ${selected.index + 1}</div>` : ''}${centerRow}<div class="popup-row"><strong>${addressLabel}:</strong> <span id="${addressId}">${popupCenter ? 'Loading…' : 'Not available'}</span></div>${definitionRow}<div class="popup-row"><strong>Effective:</strong> ${effectiveText}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : ''}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the ${selected ? `selected Circle ${selected.index + 1} center` : 'center point'}.</div>`
+                html: `<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality || 'Not specified')}</div>${selected ? `<div class="popup-row"><strong>Selected circle:</strong> Circle ${selected.index + 1}</div>` : ''}${centerRow}<div class="popup-row"><strong>${addressLabel}:</strong> <span id="${addressId}">Looking up…</span></div>${definitionRow}<div class="popup-row"><strong>Effective:</strong> ${effectiveText}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : ''}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the ${selected ? `selected Circle ${selected.index + 1} center` : 'center point'}.</div>`
               };
             };
             const reverseGeocodeForPopup = popupInfo => {
               const element = document.getElementById(popupInfo.addressId);
               if (!element || !popupInfo.center || typeof popupInfo.center.latitude !== 'number' || typeof popupInfo.center.longitude !== 'number') return;
               reverseGeocode(popupInfo.center.latitude, popupInfo.center.longitude)
-                .then(address => { element.textContent = address; })
+                .then(address => { element.textContent = address || 'Address not available'; })
                 .catch(error => {
                   console.error('Reverse geocoding failed:', error);
                   element.textContent = 'Address not available';
                 });
             };
-            const primaryPopup = buildPopup(null);
-            layer.bindPopup(primaryPopup.html);
+            let activePopupInfo = buildPopup(null);
+            layer.bindPopup(activePopupInfo.html);
 
             if (definition?.type === 'MultiCircle' && validCenters.length) {
               layer.on('click', event => {
                 const selectedIndex = selectedCircleIndex(event.latlng);
-                const popupInfo = buildPopup(selectedIndex);
-                layer.bindPopup(popupInfo.html, { autoPan: true });
+                activePopupInfo = buildPopup(selectedIndex);
+                layer.bindPopup(activePopupInfo.html, { autoPan: true });
                 layer.openPopup(event.latlng);
-                setTimeout(() => reverseGeocodeForPopup(popupInfo), 0);
               });
-            } else {
-              layer.on('popupopen', () => reverseGeocodeForPopup(primaryPopup));
             }
+
+            layer.on('popupopen', () => {
+              // Wait one frame so Leaflet has inserted the popup DOM before lookup starts.
+              requestAnimationFrame(() => reverseGeocodeForPopup(activePopupInfo));
+            });
 
             const markerCenters = definition?.type === 'MultiCircle' '''
 
 text = text[:match.start()] + replacement + text[match.end():]
-text = text.replace('</head>', f'  {marker}\n</head>', 1)
+
+# Replace the old reverse-geocoder with a resilient, cached implementation.
+old = re.compile(
+    r'''    const geocodeCache = new Map\(\);.*?\n    async function reverseGeocode\(lat, lng\) \{.*?\n    \}\n''',
+    re.S,
+)
+new = '''    const geocodeCache = new Map();
+    let lastGeocodeAt = 0;
+
+    function formatAddress(address, displayName) {
+      if (!address) return displayName || 'Address not available';
+      const parts = [
+        address.house_number && address.road ? `${address.house_number} ${address.road}` : address.road,
+        address.neighbourhood || address.suburb,
+        address.city || address.town || address.village || address.municipality,
+        address.state,
+        address.postcode
+      ].filter(Boolean);
+      return parts.join(', ') || displayName || 'Address not available';
+    }
+
+    function reverseGeocode(lat, lng) {
+      const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+      if (geocodeCache.has(key)) return geocodeCache.get(key);
+
+      const promise = (async () => {
+        const waitMs = Math.max(0, 1100 - (Date.now() - lastGeocodeAt));
+        if (waitMs) await new Promise(resolve => setTimeout(resolve, waitMs));
+        lastGeocodeAt = Date.now();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 7000);
+        try {
+          const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
+          const response = await fetch(url, {
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+          });
+          if (!response.ok) throw new Error(`Reverse geocoding returned HTTP ${response.status}`);
+          const result = await response.json();
+          return formatAddress(result.address, result.display_name);
+        } finally {
+          clearTimeout(timeout);
+        }
+      })();
+
+      geocodeCache.set(key, promise);
+      return promise;
+    }
+'''
+text, count = old.subn(new, text, count=1)
+if count != 1:
+    raise SystemExit("Could not locate reverse-geocoding implementation")
+
+if marker not in text:
+    text = text.replace('</head>', f'  {marker}\n</head>', 1)
+
 path.write_text(text, encoding='utf-8')
 print(f'Patched {path}')
