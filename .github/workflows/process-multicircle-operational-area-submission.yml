@@ -1,0 +1,27 @@
+name: Process MultiCircle Operational Area Submission
+run-name: Process MultiCircle operational area issue #${{ github.event.issue.number }}
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  process-multicircle:
+    if: >-
+      github.event.issue.state == 'open' &&
+      contains(github.event.issue.body, '"submission_type": "operational_area"') &&
+      contains(github.event.issue.body, '"type": "MultiCircle"')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Process MultiCircle operational-area submission
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/process_multicircle_operational_area_submission.py
