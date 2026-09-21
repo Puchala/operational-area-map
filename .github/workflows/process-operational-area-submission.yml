@@ -22,6 +22,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Install MultiCircle geometry dependency
+        run: pip install shapely
+
       - name: Process operational-area submission
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
