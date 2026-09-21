@@ -9,6 +9,7 @@ on:
       - "operational-areas/**/*.geojson"
       - "scripts/build_map_data.py"
       - "scripts/prepare_submission_page.py"
+      - "scripts/fix_circle_input_state.py"
       - ".github/workflows/build-map.yml"
   repository_dispatch:
     types: [operational-area-published]
@@ -48,6 +49,7 @@ jobs:
           cp index.html _site/index.html
           cp submit.html _site/submit.html
           python scripts/prepare_submission_page.py _site/submit.html
+          python scripts/fix_circle_input_state.py _site/submit.html
           cp map/operational-areas.geojson _site/operational-areas.geojson
 
       - name: Upload Pages artifact
