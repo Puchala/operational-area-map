@@ -28,4 +28,4 @@ jobs:
       - name: Process operational-area submission
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/process_operational_area_submission.py
+        run: python3 scripts/process_submission.py
