@@ -64,7 +64,7 @@ def test_touching_rectangles_are_not_overlap():
         feature("B", "right", polygon(1, 0, 2, 1)),
     ])
     assert all(not item["properties"]["potential_overlap"] for item in features)
-    assert all(not item["properties"]["potential_overlap_components"] for item in (f["properties"] for f in features))
+    assert all(not item["properties"]["potential_overlap_components"] for item in features)
 
 
 def test_only_overlapping_multipolygon_part_is_reported():
