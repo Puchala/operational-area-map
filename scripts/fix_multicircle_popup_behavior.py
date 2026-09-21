@@ -48,9 +48,48 @@ replacement = '''            const validCenters = definition?.type === 'MultiCir
               });
               return best.index;
             };
+            const haversineMeters = (a, b) => {
+              const earthRadius = 6371008.8;
+              const lat1 = Number(a.latitude) * Math.PI / 180;
+              const lat2 = Number(b.latitude) * Math.PI / 180;
+              const dLat = lat2 - lat1;
+              const dLng = (Number(b.longitude) - Number(a.longitude)) * Math.PI / 180;
+              const sinLat = Math.sin(dLat / 2);
+              const sinLng = Math.sin(dLng / 2);
+              const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+              return earthRadius * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+            };
+            const findCircleOverlapPairs = selected => {
+              if (!selected || definition?.type !== 'MultiCircle') return [];
+              const pairs = [];
+              features.forEach(otherFeature => {
+                if (otherFeature === feature) return;
+                const otherDefinition = otherFeature?.properties?.operational_area_definition;
+                const otherCircles = otherDefinition?.type === 'MultiCircle' && Array.isArray(otherDefinition.circles)
+                  ? otherDefinition.circles
+                  : (otherDefinition?.type === 'Circle' ? [otherDefinition] : []);
+                otherCircles.forEach((otherCircle, otherIndex) => {
+                  const otherCenter = otherCircle?.center_point;
+                  const otherRadius = Number(otherCircle?.radius_meters);
+                  if (!otherCenter || !Number.isFinite(otherRadius) || otherRadius < 0) return;
+                  const distance = haversineMeters(selected.center, otherCenter);
+                  if (distance <= selected.radiusMeters + otherRadius) {
+                    const otherProperties = otherFeature.properties || {};
+                    pairs.push({
+                      operatorId: otherProperties.operator_id || 'Unknown operator',
+                      siteId: otherProperties.site_id || 'Unknown area',
+                      circleNumber: otherDefinition?.type === 'MultiCircle' ? otherIndex + 1 : 1,
+                      distanceMeters: distance
+                    });
+                  }
+                });
+              });
+              return pairs;
+            };
             const buildPopup = selectedIndex => {
               const selected = selectedIndex == null ? null : validCenters.find(item => item.index === selectedIndex);
               const popupCenter = selected?.center || primaryCenter;
+              const selectedOverlapPairs = findCircleOverlapPairs(selected);
               const centerRow = popupCenter
                 ? `<div class="popup-row"><strong>Center:</strong> ${escapeHtml(Number(popupCenter.latitude).toFixed(6))}, ${escapeHtml(Number(popupCenter.longitude).toFixed(6))}</div>`
                 : '';
@@ -62,6 +101,9 @@ replacement = '''            const validCenters = definition?.type === 'MultiCir
                 definitionRow = `<div class="popup-row"><strong>Definition:</strong> MultiCircle — ${definition.circles.length} circle${definition.circles.length === 1 ? '' : 's'}</div>`;
                 if (selected) {
                   definitionRow += `<div class="popup-row"><strong>Selected circle:</strong> Circle ${selected.index + 1} — radius ${escapeHtml(formatRadius(selected.radiusMeters))}</div>`;
+                  definitionRow += selectedOverlapPairs.length
+                    ? `<div class="popup-row"><strong>Circle status:</strong> Potential geographic overlap</div><div class="popup-row"><strong>Overlapping with:</strong> ${selectedOverlapPairs.map(pair => `${escapeHtml(pair.operatorId)} · ${escapeHtml(pair.siteId)} (Circle ${pair.circleNumber})`).join(', ')}</div>`
+                    : `<div class="popup-row"><strong>Circle status:</strong> No detected overlap</div>`;
                 }
                 definition.circles.forEach((circle, index) => {
                   if (!circle?.center_point || typeof circle.radius_meters !== 'number') return;
@@ -75,11 +117,12 @@ replacement = '''            const validCenters = definition?.type === 'MultiCir
               const effectiveText = effectiveFrom
                 ? `${escapeHtml(effectiveFrom)}${effectiveTo ? ` to ${escapeHtml(effectiveTo)}` : ''}`
                 : (effectiveTo ? `Until ${escapeHtml(effectiveTo)}` : 'Not specified');
+              const areaStatus = p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap';
               const addressId = `address-${L.Util.stamp(layer)}-${selected ? selected.index : 'primary'}`;
               return {
                 addressId,
                 center: popupCenter,
-                html: `<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality || 'Not specified')}</div>${selected ? `<div class="popup-row"><strong>Selected circle:</strong> Circle ${selected.index + 1}</div>` : ''}${centerRow}<div class="popup-row"><strong>${addressLabel}:</strong> <span id="${addressId}">Looking up…</span></div>${definitionRow}<div class="popup-row"><strong>Effective:</strong> ${effectiveText}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : ''}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the ${selected ? `selected Circle ${selected.index + 1} center` : 'center point'}.</div>`
+                html: `<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality || 'Not specified')}</div>${selected ? `<div class="popup-row"><strong>Selected circle:</strong> Circle ${selected.index + 1}</div>` : ''}${centerRow}<div class="popup-row"><strong>${addressLabel}:</strong> <span id="${addressId}">Looking up…</span></div>${definitionRow}<div class="popup-row"><strong>Operational-area status:</strong> ${areaStatus}</div>${overlapWith.length ? `<div class="popup-row"><strong>Area-level overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : ''}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the ${selected ? `selected Circle ${selected.index + 1} center` : 'center point'}.</div>`
               };
             };
             const reverseGeocodeForPopup = popupInfo => {
