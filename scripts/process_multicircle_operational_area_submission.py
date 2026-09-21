@@ -4,6 +4,7 @@
 import base64
 import json
 import os
+import re
 import sys
 
 from shapely.geometry import mapping, shape
@@ -44,6 +45,42 @@ def extract_submission(body):
                 except json.JSONDecodeError:
                     pass
     fail("The issue body does not contain valid JSON submission data.")
+
+
+def normalize_geographic_bounds(value):
+    """Return schema-compliant geographic bounds, accepting the UI's legacy string form."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, dict):
+        try:
+            normalized = {
+                "south": float(value["south"]),
+                "west": float(value["west"]),
+                "north": float(value["north"]),
+                "east": float(value["east"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            fail("Geographic bounds must contain numeric south, west, north, and east values.")
+        return normalized
+    if isinstance(value, str):
+        match = re.fullmatch(
+            r"\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s+to\s+([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*",
+            value,
+        )
+        if not match:
+            fail("Geographic bounds must be an object or a string in 'south, west to north, east' format.")
+        south, west, north, east = (float(item) for item in match.groups())
+        value = {"south": south, "west": west, "north": north, "east": east}
+    else:
+        fail("Geographic bounds must be an object with south, west, north, and east values.")
+
+    if not (-90 <= value["south"] <= 90 and -90 <= value["north"] <= 90):
+        fail("Geographic bounds latitude values must be between -90 and 90.")
+    if not (-180 <= value["west"] <= 180 and -180 <= value["east"] <= 180):
+        fail("Geographic bounds longitude values must be between -180 and 180.")
+    if value["south"] > value["north"]:
+        fail("Geographic bounds south must not be greater than north.")
+    return value
 
 
 def validate_submission(payload):
@@ -130,7 +167,7 @@ def main():
     if not safe_operator or not safe_site:
         fail("Operator ID and Site / Area ID must contain usable filename characters.")
 
-    bounds = payload.get("geographic_bounds")
+    bounds = normalize_geographic_bounds(payload.get("geographic_bounds"))
     properties = {
         "operator_id": operator_id,
         "site_id": site_id,
