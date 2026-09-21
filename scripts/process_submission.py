@@ -16,6 +16,14 @@ def fail(message):
     raise SystemExit(1)
 
 
+def encode_payload(payload):
+    """Encode a structured payload in the marker format understood by processors."""
+    encoded = base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii").rstrip("=")
+    return f"<!-- OAM2:{encoded} -->"
+
+
 def decode_payload(body):
     match = re.search(r'<!--\s*OAM(1|2):([A-Za-z0-9_-]+)\s*-->', body)
     if match:
@@ -72,7 +80,11 @@ def canonicalize(payload):
 def run_processor(processor, event, payload):
     event_copy = dict(event)
     event_copy['issue'] = dict(event.get('issue') or {})
-    event_copy['issue']['body'] = json.dumps(payload, indent=2)
+    # The legacy processors intentionally parse the same OAM marker used by
+    # the public issue body. Re-embed the normalized payload instead of
+    # replacing it with raw JSON, which would make the processors fall back
+    # to the old Markdown-template parser.
+    event_copy['issue']['body'] = encode_payload(payload)
     with tempfile.NamedTemporaryFile('w', encoding='utf-8', suffix='.json', delete=False) as handle:
         json.dump(event_copy, handle)
         temp_event_path = handle.name
