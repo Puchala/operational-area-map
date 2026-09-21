@@ -9,9 +9,9 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
 # Replace the build-time geocoder with a browser-safe, persistent, timeout-bounded
-# implementation. Failed requests are never cached so a later popup can retry.
+# implementation. The source may contain either async or non-async reverseGeocode.
 pattern = re.compile(
-    r'''    const geocodeCache = new Map\(\);.*?\n    async function reverseGeocode\(lat, lng\) \{.*?\n    \}\n''',
+    r'''    const geocodeCache = new Map\(\);.*?\n    (?:async )?function reverseGeocode\(lat, lng\) \{.*?\n    \}\n''',
     re.S,
 )
 match = pattern.search(text)
