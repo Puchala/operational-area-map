@@ -6,6 +6,9 @@ import json
 import os
 import sys
 
+from shapely.geometry import mapping, shape
+from shapely.ops import unary_union
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 from process_operational_area_submission import (  # noqa: E402
@@ -103,7 +106,11 @@ def validate_submission(payload):
         polygons.append(circle_to_polygon(latitude, longitude, float(radius))["coordinates"])
 
     normalized_definition = {"type": "MultiCircle", "circles": normalized}
-    geometry = {"type": "MultiPolygon", "coordinates": polygons}
+    polygon_geometries = [shape({"type": "Polygon", "coordinates": polygon}) for polygon in polygons]
+    unioned = unary_union(polygon_geometries)
+    geometry = mapping(unioned)
+    if geometry.get("type") not in ("Polygon", "MultiPolygon"):
+        fail("MultiCircle geometry union did not produce a Polygon or MultiPolygon.")
     return operator_id, site_id, metro, normalized_definition, geometry, centers
 
 
@@ -211,7 +218,7 @@ def main():
             "- [ ] No routes, trajectories, customer data, volumes, or sensitive strategy are included.\n"
             "- [ ] Automated validation passes.\n"
             "- [ ] Potential overlap has been reviewed as an awareness signal only.\n\n"
-            "The GeoJSON MultiPolygon is an interoperability representation; the exact MultiCircle definition is preserved in feature properties."
+            "The GeoJSON Polygon/MultiPolygon is an interoperability representation; the exact MultiCircle definition is preserved in feature properties."
         ),
     }
     status, pr = api("POST", f"/repos/{REPOSITORY}/pulls", pr_payload)
