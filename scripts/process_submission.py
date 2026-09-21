@@ -55,6 +55,23 @@ def decode_payload(body):
     return None
 
 
+def normalize_bounds(value):
+    """Normalize the browser's human-readable bounds string to schema form."""
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return value
+    match = re.fullmatch(
+        r'\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s+to\s+'
+        r'([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*',
+        value,
+    )
+    if not match:
+        return value
+    south, west, north, east = (float(part) for part in match.groups())
+    return {"south": south, "west": west, "north": north, "east": east}
+
+
 def canonicalize(payload):
     """Map the current browser payload to the legacy Circle/Polygon processor schema."""
     return {
@@ -64,7 +81,7 @@ def canonicalize(payload):
         'site_id': payload.get('site_id') or payload.get('site_area_id'),
         'metro_locality': payload.get('metro_locality'),
         'center_point': payload.get('center_point'),
-        'geographic_bounds': payload.get('geographic_bounds'),
+        'geographic_bounds': normalize_bounds(payload.get('geographic_bounds')),
         'coordination_contact_name': (payload.get('coordination_contact') or {}).get('name') or payload.get('coordination_contact_name'),
         'coordination_contact_email': (payload.get('coordination_contact') or {}).get('email') or payload.get('coordination_contact_email'),
         'coordination_contact_phone': (payload.get('coordination_contact') or {}).get('phone') or payload.get('coordination_contact_phone'),
