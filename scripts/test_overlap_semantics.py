@@ -34,7 +34,7 @@ def polygon(x1, y1, x2, y2):
 def multipolygon(parts):
     return {
         "type": "MultiPolygon",
-        "coordinates": [part["coordinates"][0] for part in parts],
+        "coordinates": [part["coordinates"] for part in parts],
     }
 
 
