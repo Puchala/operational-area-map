@@ -11,6 +11,7 @@ on:
       - "scripts/prepare_submission_page.py"
       - "scripts/fix_circle_input_state.py"
       - "scripts/fix_github_submission_preview.py"
+      - "scripts/fix_multicircle_popup_behavior.py"
       - ".github/workflows/build-map.yml"
   repository_dispatch:
     types: [operational-area-published]
@@ -52,6 +53,7 @@ jobs:
           python scripts/prepare_submission_page.py _site/submit.html
           python scripts/fix_circle_input_state.py _site/submit.html
           python scripts/fix_github_submission_preview.py _site/submit.html
+          python scripts/fix_multicircle_popup_behavior.py _site/index.html
           cp map/operational-areas.geojson _site/operational-areas.geojson
 
       - name: Validate submission page
@@ -64,6 +66,13 @@ jobs:
           grep -Fq "/issues/new?title=" _site/submit.html
           grep -Fq "<!-- OAM2:" _site/submit.html
           echo "Submission page validation passed."
+
+      - name: Validate map page
+        run: |
+          test -s _site/index.html
+          grep -Fq "multicircle-popup-fix: 2026-09-21" _site/index.html
+          grep -Fq "selectedCircleIndex" _site/index.html
+          echo "Map page validation passed."
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
