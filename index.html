@@ -73,7 +73,7 @@
     const map = L.map('map', { zoomControl:true }).setView([37.38,-121.95], 11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap contributors' }).addTo(map);
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-    const formatRadius = radiusMeters => (radiusMeters * 0.000621371).toFixed(2) + ' mi';
+    const formatRadius = radiusMeters => (radiusMeters * 0.000621371).toFixed(2) + ' mi (' + (radiusMeters / 1000).toFixed(2) + ' km)';
 
     const geocodeCache = new Map();
     let lastGeocodeAt = 0;
@@ -93,11 +93,9 @@
     async function reverseGeocode(lat, lng) {
       const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
       if (geocodeCache.has(key)) return geocodeCache.get(key);
-
       const waitMs = Math.max(0, 1000 - (Date.now() - lastGeocodeAt));
       if (waitMs) await new Promise(resolve => setTimeout(resolve, waitMs));
       lastGeocodeAt = Date.now();
-
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
       const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
       if (!response.ok) throw new Error(`Reverse geocoding returned HTTP ${response.status}`);
@@ -120,32 +118,51 @@
         const layers = L.geoJSON(data, {
           style: feature => {
             const overlap = !!feature.properties?.potential_overlap;
-            const isCircle = feature.properties?.operational_area_definition?.type === 'Circle';
+            const definition = feature.properties?.operational_area_definition;
+            const isCircle = definition?.type === 'Circle';
+            const isMultiCircle = definition?.type === 'MultiCircle';
             return {
               color: overlap ? '#f97316' : '#2563eb',
-              weight: isCircle ? 2.25 : 3,
-              opacity: isCircle ? 0.9 : 1,
+              weight: (isCircle || isMultiCircle) ? 2.25 : 3,
+              opacity: (isCircle || isMultiCircle) ? 0.9 : 1,
               fillColor: overlap ? '#fb923c' : '#60a5fa',
-              fillOpacity: isCircle ? 0.12 : 0.25
+              fillOpacity: (isCircle || isMultiCircle) ? 0.12 : 0.25
             };
           },
           onEachFeature: (feature, layer) => {
             const p = feature.properties || {};
             const overlapWith = Array.isArray(p.potential_overlap_with) ? p.potential_overlap_with : [];
             const definition = p.operational_area_definition || null;
-            const center = p.center_point || (definition && definition.center_point) || null;
+            const centers = Array.isArray(p.center_points) ? p.center_points : [];
+            const center = p.center_point || (definition && definition.center_point) || centers[0] || null;
             const centerRow = center && typeof center.latitude === 'number' && typeof center.longitude === 'number'
               ? `<div class="popup-row"><strong>Center:</strong> ${escapeHtml(center.latitude.toFixed(6))}, ${escapeHtml(center.longitude.toFixed(6))}</div>`
               : '';
-            const radiusRow = definition && definition.type === 'Circle' && typeof definition.radius_meters === 'number'
-              ? `<div class="popup-row"><strong>Definition:</strong> Circle — radius ${escapeHtml(formatRadius(definition.radius_meters))}</div>`
-              : '';
-            const contact = p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : '';
+            let definitionRow = '';
+            if (definition?.type === 'Circle' && typeof definition.radius_meters === 'number') {
+              definitionRow = `<div class="popup-row"><strong>Definition:</strong> Circle — radius ${escapeHtml(formatRadius(definition.radius_meters))}</div>`;
+            } else if (definition?.type === 'MultiCircle' && Array.isArray(definition.circles)) {
+              definitionRow = `<div class="popup-row"><strong>Definition:</strong> MultiCircle — ${definition.circles.length} circle${definition.circles.length === 1 ? '' : 's'}</div>`;
+              definition.circles.forEach((circle, index) => {
+                if (!circle?.center_point || typeof circle.radius_meters !== 'number') return;
+                const c = circle.center_point;
+                definitionRow += `<div class="popup-row"><strong>Circle ${index + 1}:</strong> ${escapeHtml(Number(c.latitude).toFixed(6))}, ${escapeHtml(Number(c.longitude).toFixed(6))} — ${escapeHtml(formatRadius(circle.radius_meters))}</div>`;
+              });
+            }
+            const effectiveFrom = p.effective_from || null;
+            const effectiveTo = p.effective_to || null;
+            const effectiveText = effectiveFrom
+              ? `${escapeHtml(effectiveFrom)}${effectiveTo ? ` to ${escapeHtml(effectiveTo)}` : ''}`
+              : (effectiveTo ? `Until ${escapeHtml(effectiveTo)}` : 'Not specified');
             const addressId = `address-${L.Util.stamp(layer)}`;
-            layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality)}</div>${centerRow}<div class="popup-row"><strong>Address:</strong> <span id="${addressId}">Loading…</span></div>${radiusRow}<div class="popup-row"><strong>Effective:</strong> ${escapeHtml(p.effective_from || 'Not specified')}${p.effective_to ? ` to ${escapeHtml(p.effective_to)}` : ''}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${contact}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the center point.</div>`);
+            const addressLabel = definition?.type === 'MultiCircle' ? 'Approx. address (first center)' : 'Address';
+            layer.bindPopup(`<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality || 'Not specified')}</div>${centerRow}<div class="popup-row"><strong>${addressLabel}:</strong> <span id="${addressId}">${center ? 'Loading…' : 'Not available'}</span></div>${definitionRow}<div class="popup-row"><strong>Effective:</strong> ${effectiveText}</div><div class="popup-row"><strong>Status:</strong> ${p.potential_overlap ? 'Potential geographic overlap' : 'No detected overlap'}</div>${overlapWith.length ? `<div class="popup-row"><strong>Overlap with:</strong> ${overlapWith.map(escapeHtml).join(', ')}</div>` : ''}${p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : ''}<div class="popup-note">Informational awareness only — not an authorization or coordination determination. Address is an approximate reverse-geocoded location from the center point.</div>`);
 
-            if (center && typeof center.latitude === 'number' && typeof center.longitude === 'number' && definition?.type === 'Circle') {
-              const centerMarker = L.marker([center.latitude, center.longitude], {
+            const markerCenters = definition?.type === 'MultiCircle' && Array.isArray(definition.circles)
+              ? definition.circles.map(circle => circle?.center_point).filter(c => c && typeof c.latitude === 'number' && typeof c.longitude === 'number')
+              : (center && typeof center.latitude === 'number' && typeof center.longitude === 'number' && definition?.type === 'Circle' ? [center] : []);
+            markerCenters.forEach(point => {
+              const centerMarker = L.marker([point.latitude, point.longitude], {
                 icon: L.divIcon({
                   className: '',
                   html: '<div class="circle-center-marker' + (p.potential_overlap ? ' overlap' : '') + '" aria-hidden="true"></div>',
@@ -155,8 +172,9 @@
                 interactive: false,
                 keyboard: false
               }).addTo(map);
-              layer._circleCenterMarker = centerMarker;
-            }
+              if (!layer._circleCenterMarkers) layer._circleCenterMarkers = [];
+              layer._circleCenterMarkers.push(centerMarker);
+            });
 
             layer.on('popupopen', async () => {
               const element = document.getElementById(addressId);
