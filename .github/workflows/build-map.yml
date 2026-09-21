@@ -54,6 +54,17 @@ jobs:
           python scripts/fix_github_submission_preview.py _site/submit.html
           cp map/operational-areas.geojson _site/operational-areas.geojson
 
+      - name: Validate submission page
+        run: |
+          test -s _site/submit.html
+          if grep -Fq "/issues/new?template=" _site/submit.html; then
+            echo "ERROR: submission page still uses the GitHub template URL path"
+            exit 1
+          fi
+          grep -Fq "/issues/new?title=" _site/submit.html
+          grep -Fq "<!-- OAM2:" _site/submit.html
+          echo "Submission page validation passed."
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -66,9 +77,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
