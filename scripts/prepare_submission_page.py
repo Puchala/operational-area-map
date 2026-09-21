@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Add the GitHub issue-template submission bridge to the published page.
+"""Add the GitHub submission bridge to the published page.
 
-The source submission app remains unchanged. This small deployment-time bridge
-keeps Polygon/Circle behavior intact while giving MultiCircle submissions a
-human-readable GitHub issue body plus a hidden machine-readable payload.
+The bridge intercepts the existing button handler so every geometry type uses
+one consistent, human-readable GitHub issue body with a hidden OAM2 payload.
+It deliberately does not select an issue template because the template can
+replace/ignore URL-prefilled body content in GitHub's issue composer.
 """
 
 from pathlib import Path
@@ -41,6 +42,44 @@ BRIDGE = r'''<script>
       (Number(meters) / 1000).toFixed(2) + ' km)';
   }
 
+  function buildVisibleBody(payload) {
+    const definition = payload.operational_area_definition || {};
+    let definitionText = '**Geometry Type:** ' + escapeHtml(
+      (payload.geometry && payload.geometry.type) || definition.type || 'Unknown'
+    );
+
+    if (definition.type === 'MultiCircle') {
+      const circles = Array.isArray(definition.circles) ? definition.circles : [];
+      definitionText += '\n\n| Circle | Latitude | Longitude | Radius |\n| --- | ---: | ---: | ---: |\n' +
+        circles.map((circle, index) => {
+          const point = circle.center_point || {};
+          return '| ' + (index + 1) + ' | ' + escapeHtml(point.latitude) +
+            ' | ' + escapeHtml(point.longitude) + ' | ' +
+            escapeHtml(formatRadius(circle.radius_meters)) + ' |';
+        }).join('\n');
+    } else if (definition.type === 'Circle') {
+      const point = definition.center_point || {};
+      definitionText += '\n\n**Center:** ' + escapeHtml(point.latitude) + ', ' +
+        escapeHtml(point.longitude) + '\n**Radius:** ' +
+        escapeHtml(formatRadius(definition.radius_meters));
+    } else if (payload.geometry && payload.geometry.type === 'Polygon') {
+      const ring = payload.geometry.coordinates && payload.geometry.coordinates[0];
+      if (Array.isArray(ring)) definitionText += '\n\n**Boundary vertices:** ' + Math.max(0, ring.length - 1);
+    } else if (payload.geometry && payload.geometry.type === 'MultiPolygon') {
+      const polygons = Array.isArray(payload.geometry.coordinates) ? payload.geometry.coordinates : [];
+      definitionText += '\n\n**Component polygons:** ' + polygons.length;
+    }
+
+    return '<!-- OPERATIONAL-AREA-SUBMISSION -->\n\n## Operational Area Submission\n\n' +
+      '**Operator ID:** ' + escapeHtml(payload.operator_id || '') + '\n\n' +
+      '**Site / Area ID:** ' + escapeHtml(payload.site_id || payload.site_area_id || '') + '\n\n' +
+      '**Metro / Locality:** ' + escapeHtml(payload.metro_locality || '') + '\n\n' +
+      '**Effective From:** ' + escapeHtml(payload.effective_from || 'Not specified') + '\n\n' +
+      '**Effective To:** ' + escapeHtml(payload.effective_to || 'Not specified') + '\n\n' +
+      '### Operational Area Definition\n\n' + definitionText + '\n\n' +
+      '<!-- OAM2:' + encodeBase64Url(JSON.stringify(payload)) + ' -->';
+  }
+
   button.addEventListener('click', function (event) {
     let payload;
     try {
@@ -48,54 +87,19 @@ BRIDGE = r'''<script>
     } catch (_) {
       return; // Let the existing submission handler report the normal error.
     }
-
-    const definition = payload && payload.operational_area_definition;
-    if (!definition || definition.type !== 'MultiCircle') return;
+    if (!payload) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
-
-    const circles = Array.isArray(definition.circles) ? definition.circles : [];
-    const rows = circles.map((circle, index) => {
-      const point = circle.center_point || {};
-      return '| ' + (index + 1) + ' | ' + escapeHtml(point.latitude) +
-        ' | ' + escapeHtml(point.longitude) + ' | ' +
-        escapeHtml(formatRadius(circle.radius_meters)) + ' |';
-    }).join('\n');
-
-    const visibleBody = [
-      '<!-- OPERATIONAL-AREA-SUBMISSION -->',
-      '',
-      '## Operational Area Submission',
-      '',
-      '**Operator ID:** ' + escapeHtml(payload.operator_id || ''),
-      '',
-      '**Site / Area ID:** ' + escapeHtml(payload.site_id || payload.site_area_id || ''),
-      '',
-      '**Metro / Locality:** ' + escapeHtml(payload.metro_locality || ''),
-      '',
-      '**Effective From:** ' + escapeHtml(payload.effective_from || ''),
-      '',
-      '**Effective To:** ' + escapeHtml(payload.effective_to || ''),
-      '',
-      '### Operational Area Definition',
-      '',
-      '**Type:** MultiCircle',
-      '',
-      '| Circle | Latitude | Longitude | Radius |',
-      '| --- | ---: | ---: | ---: |',
-      rows,
-      '',
-      '<!-- OAM2:' + encodeBase64Url(JSON.stringify(payload)) + ' -->'
-    ].join('\n');
 
     const repoUrl = typeof getGitHubRepositoryUrl === 'function'
       ? getGitHubRepositoryUrl()
       : 'https://github.com/Puchala/operational-area-map';
     const siteId = payload.site_id || payload.site_area_id || '';
-    const url = repoUrl + '/issues/new?template=' + encodeURIComponent('operational-area.md') +
-      '&title=' + encodeURIComponent('Operational Area Submission: ' + siteId) +
-      '&body=' + encodeURIComponent(visibleBody);
+    const title = 'Operational Area Submission: ' + siteId;
+    const body = buildVisibleBody(payload);
+    const url = repoUrl + '/issues/new?title=' + encodeURIComponent(title) +
+      '&body=' + encodeURIComponent(body);
 
     window.open(url, '_blank', 'noopener');
   }, true);
@@ -109,10 +113,23 @@ def main() -> None:
 
     path = Path(sys.argv[1])
     html = path.read_text(encoding='utf-8')
-    if 'submission-preview-bridge: multicircle-v1' in html:
+    marker = '<!-- submission-preview-bridge: unified-v2 -->'
+    if marker in html:
         return
 
-    marker = '<!-- submission-preview-bridge: multicircle-v1 -->'
+    # Remove any older bridge generated by previous versions so it cannot
+    # leave a stale template= URL in the published artifact.
+    old_start = '<!-- submission-preview-bridge:'
+    while old_start in html:
+        start = html.find(old_start)
+        script_start = html.find('<script>', start)
+        script_end = html.find('</script>', script_start)
+        if script_start == -1 or script_end == -1:
+            html = html[:start]
+            break
+        end = script_end + len('</script>')
+        html = html[:start] + html[end:]
+
     html += '\n' + marker + '\n' + BRIDGE + '\n'
     path.write_text(html, encoding='utf-8')
 
