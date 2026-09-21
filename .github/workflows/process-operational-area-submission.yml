@@ -14,12 +14,17 @@ jobs:
   process-submission:
     if: >-
       github.event.issue.state == 'open' &&
-      contains(github.event.issue.body, '### Operator ID') &&
       (
-        contains(github.event.issue.body, '### Operational Area Geometry') ||
-        contains(github.event.issue.body, '### Operational Area Definition (optional)')
-      ) &&
-      contains(github.event.issue.body, '<!-- OPERATIONAL-AREA-SUBMISSION -->')
+        (
+          contains(github.event.issue.body, '### Operator ID') &&
+          (
+            contains(github.event.issue.body, '### Operational Area Geometry') ||
+            contains(github.event.issue.body, '### Operational Area Definition (optional)')
+          ) &&
+          contains(github.event.issue.body, '<!-- OPERATIONAL-AREA-SUBMISSION -->')
+        ) ||
+        contains(github.event.issue.body, '"submission_type": "operational_area"')
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
