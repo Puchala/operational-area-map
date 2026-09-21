@@ -8,6 +8,8 @@ on:
       - "submit.html"
       - "operational-areas/**/*.geojson"
       - "scripts/build_map_data.py"
+      - "scripts/check_overlap.py"
+      - "scripts/test_overlap_semantics.py"
       - "scripts/prepare_submission_page.py"
       - "scripts/fix_circle_input_state.py"
       - "scripts/fix_github_submission_preview.py"
@@ -41,6 +43,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install shapely
+
+      - name: Test overlap semantics
+        run: python scripts/test_overlap_semantics.py
 
       - name: Build shared GeoJSON
         run: python scripts/build_map_data.py --output map/operational-areas.geojson
