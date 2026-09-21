@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, shape
+from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parents[1]
 AREA_EPSILON = 1e-12
@@ -38,6 +39,48 @@ def circle_to_polygon(center_lat, center_lng, radius_meters, segments=64):
             round(math.degrees(lat2), 7),
         ])
     return {"type": "Polygon", "coordinates": [coordinates]}
+
+
+def definition_circle_geometries(definition):
+    geometries = []
+    for circle in definition.get("circles") or []:
+        center = circle.get("center_point") if isinstance(circle, dict) else None
+        radius = circle.get("radius_meters") if isinstance(circle, dict) else None
+        if not isinstance(center, dict) or not isinstance(radius, (int, float)):
+            continue
+        if not isinstance(center.get("latitude"), (int, float)) or not isinstance(center.get("longitude"), (int, float)):
+            continue
+        geometries.append(shape(circle_to_polygon(
+            float(center["latitude"]),
+            float(center["longitude"]),
+            float(radius),
+        )))
+    return geometries
+
+
+def canonical_geometry(data):
+    """Build published geometry from the authoritative operational-area definition.
+
+    This prevents stale/generated geometry from disagreeing with the exact Circle or
+    MultiCircle definition stored in properties. For multiple circles, union the
+    component geometries so the published GeoJSON remains a valid area geometry even
+    when circles overlap or one contains another.
+    """
+    definition = data.get("properties", {}).get("operational_area_definition") or {}
+    definition_type = definition.get("type")
+
+    if definition_type == "MultiCircle":
+        circles = definition_circle_geometries(definition)
+        if not circles:
+            return shape(data["geometry"])
+        return unary_union(circles)
+
+    if definition_type == "Circle":
+        circles = definition_circle_geometries({"circles": [definition]})
+        if circles:
+            return circles[0]
+
+    return shape(data["geometry"])
 
 
 def polygon_components(data, geom):
@@ -80,12 +123,13 @@ def polygon_components(data, geom):
 items = []
 for path in sorted((ROOT / "operational-areas").glob("*/*.geojson")):
     data = json.loads(path.read_text())
-    items.append((path, data, shape(data["geometry"])))
+    items.append((path, data, canonical_geometry(data)))
 
 features = []
 
 for i, (path, data, geom) in enumerate(items):
     feature = copy.deepcopy(data)
+    feature["geometry"] = json.loads(json.dumps(shape_to_geojson(geom))) if False else feature.get("geometry")
     props = feature.setdefault("properties", {})
     overlaps = []
     overlap_details = []
