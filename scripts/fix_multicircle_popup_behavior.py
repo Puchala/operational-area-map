@@ -10,18 +10,14 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 marker = "<!-- multicircle-popup-fix: 2026-09-21 -->"
 
+# Always rebuild the generated popup block from the source index.html. This avoids
+# layering patches and makes the Pages build deterministic.
 pattern = re.compile(
-    r'''            const centerRow = center && typeof center\\.latitude === 'number'.*?\n            const markerCenters = definition\\?\\.type === 'MultiCircle' ''',
+    r'''            const centerRow = center && typeof center\.latitude === 'number'.*?\n            const markerCenters = definition\?\.type === 'MultiCircle' ''',
     re.S,
 )
-
-# The built page may already contain the previous implementation. Replace the whole
-# popup block so the generated page is deterministic and the patch remains idempotent.
 match = pattern.search(text)
 if not match:
-    if marker in text and "const selectedCircleIndex" in text:
-        print("MultiCircle popup behavior already patched.")
-        raise SystemExit(0)
     raise SystemExit("Could not locate the existing popup/center-marker block in index.html")
 
 replacement = '''            const validCenters = definition?.type === 'MultiCircle' && Array.isArray(definition.circles)
@@ -109,7 +105,6 @@ replacement = '''            const validCenters = definition?.type === 'MultiCir
             }
 
             layer.on('popupopen', () => {
-              // Wait one frame so Leaflet has inserted the popup DOM before lookup starts.
               requestAnimationFrame(() => reverseGeocodeForPopup(activePopupInfo));
             });
 
@@ -117,7 +112,7 @@ replacement = '''            const validCenters = definition?.type === 'MultiCir
 
 text = text[:match.start()] + replacement + text[match.end():]
 
-# Replace the old reverse-geocoder with a resilient, cached implementation.
+# Replace the source reverse-geocoder with a cached, timeout-bounded implementation.
 old = re.compile(
     r'''    const geocodeCache = new Map\(\);.*?\n    async function reverseGeocode\(lat, lng\) \{.*?\n    \}\n''',
     re.S,
@@ -169,8 +164,7 @@ text, count = old.subn(new, text, count=1)
 if count != 1:
     raise SystemExit("Could not locate reverse-geocoding implementation")
 
-if marker not in text:
-    text = text.replace('</head>', f'  {marker}\n</head>', 1)
-
-path.write_text(text, encoding='utf-8')
-print(f'Patched {path}')
+text = re.sub(r'\n\s*<!-- multicircle-popup-fix: 2026-09-21 -->', '', text)
+text = text.replace('</head>', f'  {marker}\n</head>', 1)
+path.write_text(text, encoding="utf-8")
+print(f"Patched {path}")
