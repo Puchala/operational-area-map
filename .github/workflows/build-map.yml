@@ -16,8 +16,6 @@ on:
       - "scripts/fix_multicircle_popup_behavior.py"
       - "scripts/fix_multicircle_visual_rendering.py"
       - "scripts/fix_geometry_overlap_ui.py"
-      - "scripts/fix_popup_overlap_wording.py"
-      - "scripts/remove_redundant_operational_status.py"
       - "scripts/simplify_operational_area_popup.py"
       - ".github/workflows/build-map.yml"
   repository_dispatch:
@@ -66,8 +64,6 @@ jobs:
           python scripts/fix_multicircle_popup_behavior.py _site/index.html
           python scripts/fix_multicircle_visual_rendering.py _site/index.html
           python scripts/fix_geometry_overlap_ui.py _site/index.html
-          python scripts/fix_popup_overlap_wording.py _site/index.html
-          python scripts/remove_redundant_operational_status.py _site/index.html
           python scripts/simplify_operational_area_popup.py _site/index.html
           cp map/operational-areas.geojson _site/operational-areas.geojson
 
@@ -88,8 +84,10 @@ jobs:
           grep -Fq "geometry-overlap-ui-fix: 2026-09-21" _site/index.html
           grep -Fq "multicircle-visual-rendering-fix: 2026-09-21" _site/index.html
           grep -Fq "simplified-operational-area-popup: 2026-09-21" _site/index.html
-          grep -Fq "potential_overlap_components" _site/index.html
-          grep -Fq "selectedPolygonIndex" _site/index.html
+          grep -Fq "<strong>Locality:</strong>" _site/index.html
+          grep -Fq "<strong>Center:</strong>" _site/index.html
+          grep -Fq "Address" _site/index.html
+          grep -Fq "Coordination contact:" _site/index.html
           if grep -Fq "Operational-area status:" _site/index.html; then
             echo "ERROR: redundant operational-area status remains in popup"
             exit 1
