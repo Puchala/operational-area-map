@@ -10,6 +10,7 @@ on:
       - "scripts/build_map_data.py"
       - "scripts/prepare_submission_page.py"
       - "scripts/fix_circle_input_state.py"
+      - "scripts/fix_github_submission_preview.py"
       - ".github/workflows/build-map.yml"
   repository_dispatch:
     types: [operational-area-published]
@@ -50,6 +51,7 @@ jobs:
           cp submit.html _site/submit.html
           python scripts/prepare_submission_page.py _site/submit.html
           python scripts/fix_circle_input_state.py _site/submit.html
+          python scripts/fix_github_submission_preview.py _site/submit.html
           cp map/operational-areas.geojson _site/operational-areas.geojson
 
       - name: Upload Pages artifact
@@ -64,6 +66,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
