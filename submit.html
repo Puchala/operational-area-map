@@ -63,7 +63,7 @@
         <div><label for="circleLatitude">Center Latitude</label><input id="circleLatitude" type="number" step="any" min="-90" max="90" placeholder="37.3382" inputmode="decimal"></div>
         <div><label for="circleLongitude">Center Longitude</label><input id="circleLongitude" type="number" step="any" min="-180" max="180" placeholder="-121.8863" inputmode="decimal"></div>
         <div><label for="circleRadius">Radius</label><input id="circleRadius" type="number" step="any" min="0" placeholder="5" inputmode="decimal"></div>
-        <div><label for="circleRadiusUnit">Radius Unit</label><select id="circleRadiusUnit"><option value="km">Kilometers (km)</option><option value="mi">Miles (mi)</option><option value="m">Meters (m)</option></select></div>
+        <div><label for="circleRadiusUnit">Radius Unit</label><select id="circleRadiusUnit"><option value="mi" selected>Miles (mi)</option><option value="km">Kilometers (km)</option><option value="m">Meters (m)</option></select></div>
       </div>
       <div class="actions"><button id="createCircleFromInputs" class="primary" type="button">Create Circle</button></div>
       <div id="circleBuilderStatus" class="circle-builder-status" role="alert" aria-live="polite"></div>
@@ -153,8 +153,8 @@
     const c = layer.getLatLng();
     circleLatitude.value = c.lat.toFixed(7);
     circleLongitude.value = c.lng.toFixed(7);
-    circleRadiusUnit.value = 'km';
-    circleRadius.value = trimNumber(layer.getRadius() / 1000, 3);
+    circleRadiusUnit.value = 'mi';
+    circleRadius.value = trimNumber(layer.getRadius() / 1609.344, 3);
   }
 
   function trimNumber(value, decimals) {
@@ -202,6 +202,8 @@
     setCircleBuilderStatus('');
   }
 
+  createCircleFromInputs.addEventListener('click', createCircleFromValues);
+
   function circleToPolygon(centerLat, centerLng, radiusMeters, segments = 64) {
     const earthRadius = 6371008.8;
     const angularDistance = radiusMeters / earthRadius;
@@ -210,25 +212,16 @@
     const coordinates = [];
 
     for (let i = 0; i <= segments; i++) {
-      const bearing = (2 * Math.PI * i) / segments;
-      const lat2 = Math.asin(
-        Math.sin(lat1) * Math.cos(angularDistance) +
-        Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
-      );
-      const lon2 = lon1 + Math.atan2(
-        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
-        Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
-      );
-
-      const normalizedLon = ((lon2 * 180 / Math.PI + 540) % 360) - 180;
-      coordinates.push([
-        Number(normalizedLon.toFixed(7)),
-        Number((lat2 * 180 / Math.PI).toFixed(7))
-      ]);
+      const bearing = (i / segments) * 2 * Math.PI;
+      const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angularDistance) + Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing));
+      const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1), Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2));
+      coordinates.push([lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]);
     }
 
     return { type: 'Polygon', coordinates: [coordinates] };
   }
+
+  function trim(value, decimals = 7) { return Number(value.toFixed(decimals)).toString(); }
 
   function formatRadius(radiusMeters) {
     const miles = radiusMeters / 1609.344;
@@ -236,261 +229,180 @@
     return miles.toFixed(2) + ' mi (' + kilometers.toFixed(2) + ' km)';
   }
 
-  function refresh() {
-    const layers = drawn.getLayers();
-    circleDefinition = null;
+  function getGitHubRepositoryUrl() {
+    const host = window.location.hostname;
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    if (host.endsWith('.github.io') && pathParts.length >= 1) {
+      const owner = host.split('.')[0];
+      const repo = pathParts[0];
+      return `https://github.com/${owner}/${repo}`;
+    }
+    throw new Error('This page must be hosted from the GitHub Pages repository to generate a GitHub submission link.');
+  }
 
-    if (!layers.length) {
-      output.value = ''; submissionGeometry.value = ''; copy.disabled = true; download.disabled = true;
+  function getSelectedLayer() {
+    let layer = null;
+    drawn.eachLayer(candidate => { layer = candidate; });
+    return layer;
+  }
+
+  function refresh() {
+    const layer = getSelectedLayer();
+    if (!layer) {
+      output.value = '';
+      submissionGeometry.value = '';
       center.textContent = 'Draw an area to calculate';
       bounds.textContent = 'Draw an area to calculate';
       radius.textContent = 'Only applicable to circles';
-      centerPointInput.value = ''; boundsInput.value = '';
-      circleLatitude.value = ''; circleLongitude.value = ''; circleRadius.value = '';
-      setCircleBuilderStatus('');
-      createGithubSubmission.disabled = true; copySubmissionText.disabled = true;
+      centerPointInput.value = '';
+      boundsInput.value = '';
+      circleDefinition = null;
+      updateSubmissionButtons();
       return;
     }
 
-    const layer = layers[0];
-    const isCircle = layer instanceof L.Circle;
-    let geometry;
+    const geojson = layer.toGeoJSON();
+    let geometry = geojson.geometry;
 
-    if (isCircle) {
-      const circleCenter = layer.getLatLng();
+    if (layer instanceof L.Circle) {
+      const c = layer.getLatLng();
       const radiusMeters = layer.getRadius();
-
       circleDefinition = {
         type: 'Circle',
         center_point: {
-          latitude: Number(circleCenter.lat.toFixed(7)),
-          longitude: Number(circleCenter.lng.toFixed(7))
+          latitude: Number(c.lat.toFixed(7)),
+          longitude: Number(c.lng.toFixed(7))
         },
         radius_meters: Number(radiusMeters.toFixed(2))
       };
-
       updateCircleInputsFromLayer(layer);
-      geometry = circleToPolygon(
-        circleDefinition.center_point.latitude,
-        circleDefinition.center_point.longitude,
-        circleDefinition.radius_meters
-      );
-      radius.textContent = formatRadius(circleDefinition.radius_meters);
+      geometry = circleToPolygon(c.lat, c.lng, radiusMeters);
+      center.textContent = trim(c.lat) + ', ' + trim(c.lng);
+      radius.textContent = formatRadius(radiusMeters);
     } else {
-      const feature = layer.toGeoJSON();
-      geometry = feature.geometry;
+      circleDefinition = null;
+      circleLatitude.value = '';
+      circleLongitude.value = '';
+      circleRadius.value = '';
+      circleRadiusUnit.value = 'mi';
+      if (layer.getBounds) {
+        const b = layer.getBounds();
+        const c = b.getCenter();
+        center.textContent = trim(c.lat) + ', ' + trim(c.lng);
+      }
       radius.textContent = 'Only applicable to circles';
-      circleLatitude.value = ''; circleLongitude.value = ''; circleRadius.value = '';
     }
 
     output.value = JSON.stringify(geometry, null, 2);
-    submissionGeometry.value = JSON.stringify(geometry, null, 2);
-
-    const b = layer.getBounds();
-    const c = b.getCenter();
-    const centerText = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
-    const boundsText = 'south ' + b.getSouth().toFixed(6) + ', west ' + b.getWest().toFixed(6) + ', north ' + b.getNorth().toFixed(6) + ', east ' + b.getEast().toFixed(6);
-
-    center.textContent = isCircle
-      ? circleDefinition.center_point.latitude + ',' + circleDefinition.center_point.longitude
-      : centerText;
-    bounds.textContent = boundsText;
-    centerPointInput.value = isCircle
-      ? circleDefinition.center_point.latitude + ',' + circleDefinition.center_point.longitude
-      : centerText;
-    boundsInput.value = JSON.stringify({
-      south: Number(b.getSouth().toFixed(6)),
-      west: Number(b.getWest().toFixed(6)),
-      north: Number(b.getNorth().toFixed(6)),
-      east: Number(b.getEast().toFixed(6))
-    });
-
-    copy.disabled = false; download.disabled = false;
-    createGithubSubmission.disabled = false;
-    copySubmissionText.disabled = false;
+    submissionGeometry.value = output.value;
+    const b = layer.getBounds ? layer.getBounds() : null;
+    if (b) {
+      bounds.textContent = trim(b.getSouth()) + ', ' + trim(b.getWest()) + ' to ' + trim(b.getNorth()) + ', ' + trim(b.getEast());
+      boundsInput.value = bounds.textContent;
+    }
+    centerPointInput.value = center.textContent;
     updateSubmissionButtons();
   }
 
-  function buildSubmissionText() {
-    const payload = buildSubmissionPayload();
-    const fence = String.fromCharCode(96).repeat(3);
-    const lines = [];
-    lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->', '');
-    lines.push('### Operator ID', payload.operator_id, '');
-    lines.push('### Site / Area ID', payload.site_id, '');
-    lines.push('### Metro / Locality', payload.metro_locality, '');
-    if (payload.geometry) lines.push('### Operational Area Geometry', fence + 'json', JSON.stringify(payload.geometry, null, 2), fence, '');
-    if (payload.operational_area_definition) lines.push('### Operational Area Definition (optional)', fence + 'json', JSON.stringify(payload.operational_area_definition, null, 2), fence, '');
-    lines.push('### Center Point (optional)', payload.center_point || '', '');
-    if (payload.geographic_bounds) lines.push('### Geographic Bounds (optional)', fence + 'json', JSON.stringify(payload.geographic_bounds, null, 2), fence, '');
-    lines.push('### Coordination Contact Name (optional)', payload.coordination_contact_name || '', '');
-    lines.push('### Coordination Contact Email (optional)', payload.coordination_contact_email || '', '');
-    lines.push('### Coordination Contact Phone (optional)', payload.coordination_contact_phone || '', '');
-    lines.push('### Effective From (optional)', payload.effective_from || '', '');
-    lines.push('### Effective To (optional)', payload.effective_to || '', '');
-    lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
-    return lines.join('\n');
-  }
-
-  function buildSubmissionPayload() {
-    const operatorId = document.getElementById('operatorId').value.trim();
-    const siteId = document.getElementById('siteId').value.trim();
-    const metro = document.getElementById('metroLocality').value.trim();
-    const geometry = submissionGeometry.value.trim();
-    if (!operatorId || !siteId || !metro) throw new Error('Complete the required fields first.');
-    if (!document.getElementById('minimumInfo').checked || !document.getElementById('authorized').checked) throw new Error('Please confirm both publication checkboxes.');
-    if (!geometry && !circleDefinition) throw new Error('Draw an operational area first.');
-    return {
-      version: 1,
-      operator_id: operatorId,
-      site_id: siteId,
-      metro_locality: metro,
-      geometry: circleDefinition ? null : JSON.parse(geometry),
-      operational_area_definition: circleDefinition || null,
-      center_point: centerPointInput.value.trim() || null,
-      geographic_bounds: boundsInput.value.trim() ? JSON.parse(boundsInput.value.trim()) : null,
-      coordination_contact_name: document.getElementById('contactName').value.trim() || null,
-      coordination_contact_email: document.getElementById('contactEmail').value.trim() || null,
-      coordination_contact_phone: document.getElementById('contactPhone').value.trim() || null,
-      effective_from: document.getElementById('effectiveFrom').value.trim() || null,
-      effective_to: document.getElementById('effectiveTo').value.trim() || null,
-      confirm_minimum_info: true,
-      authorized: true
-    };
-  }
-
-  function encodeSubmissionPayload(payload) {
-    const json = JSON.stringify(payload);
-    const bytes = new TextEncoder().encode(json);
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-  }
-
-  function buildIssueBody(payloadToken, payload) {
-    const lines = [];
-    lines.push('<!-- OPERATIONAL-AREA-SUBMISSION -->', '');
-    lines.push('### Operator ID', payload.operator_id, '');
-    lines.push('### Site / Area ID', payload.site_id, '');
-    lines.push('### Metro / Locality', payload.metro_locality, '');
-    if (payload.operational_area_definition) {
-      lines.push('### Operational Area Definition (optional)', 'Circle — ' + formatRadius(payload.operational_area_definition.radius_meters) + ' radius', '');
-    } else {
-      lines.push('### Operational Area Geometry', 'Geometry generated by the submission tool.', '');
-    }
-    lines.push('### Center Point (optional)', payload.center_point || '', '');
-    lines.push('### Geographic Bounds (optional)', payload.geographic_bounds ? JSON.stringify(payload.geographic_bounds) : '', '');
-    lines.push('### Coordination Contact Name (optional)', payload.coordination_contact_name || '', '');
-    lines.push('### Coordination Contact Email (optional)', payload.coordination_contact_email || '', '');
-    lines.push('### Coordination Contact Phone (optional)', payload.coordination_contact_phone || '', '');
-    lines.push('### Effective From (optional)', payload.effective_from || '', '');
-    lines.push('### Effective To (optional)', payload.effective_to || '', '');
-    lines.push('<!-- OAM2:' + payloadToken + ' -->', '');
-    lines.push('### Publication confirmation', '- [x] I confirm this submission contains only minimum necessary information for geographic overlap awareness and no sensitive operational details.', '- [x] I confirm I am authorized to publish this operational-area information on behalf of the operator.');
-    return lines.join('\n');
-  }
-
-  function getGitHubRepositoryUrl() {
-    const hostname = window.location.hostname;
-    const githubPagesSuffix = '.github.io';
-
-    if (!hostname.endsWith(githubPagesSuffix)) {
-      throw new Error('This submission tool must be opened from the repository GitHub Pages site.');
-    }
-
-    const owner = hostname.slice(0, -githubPagesSuffix.length);
-    const pathParts = window.location.pathname.split('/').filter(Boolean);
-    const repo = pathParts[0];
-
-    if (!owner || !repo) {
-      throw new Error('Unable to determine the GitHub repository from the current Pages URL.');
-    }
-
-    return 'https://github.com/' + owner + '/' + repo;
-  }
-
-  function buildGitHubIssueUrl() {
-    const payload = buildSubmissionPayload();
-    const payloadToken = encodeSubmissionPayload(payload);
-    const title = 'Operational Area: ' + payload.operator_id + ' / ' + payload.site_id;
-    const body = buildIssueBody(payloadToken, payload);
-    const params = new URLSearchParams();
-    params.set('template', 'operational-area.md');
-    params.set('title', title);
-    params.set('body', body);
-
-    const url = getGitHubRepositoryUrl() + '/issues/new?' + params.toString();
-
-    if (url.length > 7500) {
-      throw new Error('This submission is too large for a GitHub URL. Please use Copy Submission Text for this geometry.');
-    }
-
-    return url;
-  }
-
-  function updateSubmissionButtons() {
-    const ready = Boolean(document.getElementById('operatorId').value.trim() && document.getElementById('siteId').value.trim() && document.getElementById('metroLocality').value.trim() && submissionGeometry.value.trim() && document.getElementById('minimumInfo').checked && document.getElementById('authorized').checked);
-    createGithubSubmission.disabled = !ready;
-    copySubmissionText.disabled = !ready;
-  }
-
-  const effectiveFromInput = document.getElementById('effectiveFrom');
-  const effectiveToInput = document.getElementById('effectiveTo');
-
-  effectiveFromInput.addEventListener('change', () => {
-    effectiveToInput.min = effectiveFromInput.value || '';
-    if (effectiveToInput.value && effectiveFromInput.value && effectiveToInput.value < effectiveFromInput.value) {
-      effectiveToInput.value = effectiveFromInput.value;
-    }
-    updateSubmissionButtons();
+  map.on(L.Draw.Event.CREATED, e => {
+    drawn.clearLayers();
+    drawn.addLayer(e.layer);
+    refresh();
   });
-
-  document.querySelectorAll('#submission input').forEach(el => el.addEventListener('input', updateSubmissionButtons));
-  document.querySelectorAll('#submission input[type="checkbox"]').forEach(el => el.addEventListener('change', updateSubmissionButtons));
-  createCircleFromInputs.addEventListener('click', createCircleFromValues);
-
-  createGithubSubmission.addEventListener('click', () => {
-    try {
-      createGithubSubmission.disabled = true;
-      createGithubSubmission.textContent = 'Opening GitHub...';
-      const url = buildGitHubIssueUrl();
-      window.location.href = url;
-    } catch (e) {
-      createGithubSubmission.textContent = 'Open GitHub Submission';
-      submissionStatus.textContent = e.message;
-      submissionStatus.style.display = 'block';
-      updateSubmissionButtons();
-    }
-  });
-
-  copySubmissionText.addEventListener('click', async () => {
-    try {
-      const text = buildSubmissionText();
-      await navigator.clipboard.writeText(text);
-      submissionStatus.textContent = 'Submission text copied.';
-      submissionStatus.style.display = 'block';
-    } catch (e) {
-      submissionStatus.textContent = e.message;
-      submissionStatus.style.display = 'block';
-    }
-  });
-
-  map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); refresh(); });
   map.on(L.Draw.Event.EDITED, refresh);
   map.on(L.Draw.Event.DELETED, refresh);
 
   copy.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(output.value); copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1600); }
-    catch { output.select(); document.execCommand('copy'); copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1600); }
+    if (!output.value) return;
+    await navigator.clipboard.writeText(output.value);
+    copy.textContent = 'Copied';
+    setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1200);
   });
 
   download.addEventListener('click', () => {
-    const blob = new Blob([output.value + '\n'], { type: 'application/geo+json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'operational-area-geometry.geojson'; a.click(); URL.revokeObjectURL(a.href);
+    if (!output.value) return;
+    const blob = new Blob([output.value], { type: 'application/geo+json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'operational-area-geometry.geojson';
+    a.click();
+    URL.revokeObjectURL(url);
   });
+
+  const submissionInputs = ['operatorId','siteId','metroLocality','contactName','contactEmail','contactPhone','effectiveFrom','effectiveTo','minimumInfo','authorized'];
+  submissionInputs.forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', updateSubmissionButtons);
+    el.addEventListener('change', updateSubmissionButtons);
+  });
+
+  const effectiveFrom = document.getElementById('effectiveFrom');
+  const effectiveTo = document.getElementById('effectiveTo');
+  effectiveFrom.addEventListener('change', () => {
+    effectiveTo.min = effectiveFrom.value || '';
+    if (effectiveTo.value && effectiveFrom.value && effectiveTo.value < effectiveFrom.value) effectiveTo.value = effectiveFrom.value;
+    updateSubmissionButtons();
+  });
+
+  function buildSubmissionText() {
+    const layer = getSelectedLayer();
+    if (!layer) return '';
+    const payload = {
+      submission_type: 'operational_area',
+      operator_id: document.getElementById('operatorId').value.trim(),
+      site_area_id: document.getElementById('siteId').value.trim(),
+      metro_locality: document.getElementById('metroLocality').value.trim(),
+      center_point: centerPointInput.value,
+      geographic_bounds: boundsInput.value,
+      coordination_contact: {
+        name: document.getElementById('contactName').value.trim(),
+        email: document.getElementById('contactEmail').value.trim(),
+        phone: document.getElementById('contactPhone').value.trim()
+      },
+      effective_from: effectiveFrom.value,
+      effective_to: effectiveTo.value,
+      operational_area_definition: circleDefinition,
+      geometry: circleDefinition ? null : JSON.parse(submissionGeometry.value),
+      confirmations: {
+        minimum_information: document.getElementById('minimumInfo').checked,
+        authorized: document.getElementById('authorized').checked
+      }
+    };
+    return '```json\n' + JSON.stringify(payload, null, 2) + '\n```';
+  }
+
+  function updateSubmissionButtons() {
+    const hasGeometry = !!getSelectedLayer();
+    const required = ['operatorId','siteId','metroLocality'].every(id => document.getElementById(id).value.trim());
+    const confirmations = document.getElementById('minimumInfo').checked && document.getElementById('authorized').checked;
+    const validDates = !effectiveFrom.value || !effectiveTo.value || effectiveTo.value >= effectiveFrom.value;
+    const ready = hasGeometry && required && confirmations && validDates;
+    createGithubSubmission.disabled = !ready;
+    copySubmissionText.disabled = !ready;
+  }
+
+  copySubmissionText.addEventListener('click', async () => {
+    const text = buildSubmissionText();
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    submissionStatus.style.display = 'block';
+    submissionStatus.textContent = 'Submission text copied to clipboard.';
+  });
+
+  createGithubSubmission.addEventListener('click', () => {
+    try {
+      const repoUrl = getGitHubRepositoryUrl();
+      const title = encodeURIComponent('Operational Area Submission: ' + document.getElementById('siteId').value.trim());
+      const body = encodeURIComponent(buildSubmissionText());
+      window.open(repoUrl + '/issues/new?title=' + title + '&body=' + body, '_blank', 'noopener');
+    } catch (error) {
+      submissionStatus.style.display = 'block';
+      submissionStatus.textContent = error.message;
+    }
+  });
+
+  refresh();
 </script>
 </body>
 </html>
