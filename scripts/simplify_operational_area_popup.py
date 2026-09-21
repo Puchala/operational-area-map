@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep operational-area popups intentionally minimal: locality, center, address, and contact."""
+"""Keep operational-area popups minimal and make address lookup work for every geometry."""
 
 from pathlib import Path
 import sys
@@ -20,9 +20,6 @@ REPLACEMENT = r'''            const buildPopup = selected => {
               if (!popupCenter && definition?.type === 'MultiCircle' && validCenters.length) {
                 popupCenter = validCenters[0].center;
               }
-              // Some published demo polygons do not carry an explicit center_point.
-              // Use the rendered feature bounds as the deterministic fallback so
-              // Center and address are still available for every operational area.
               if (!popupCenter && layer?.getBounds) {
                 const bounds = layer.getBounds();
                 if (bounds && bounds.isValid()) {
@@ -44,6 +41,27 @@ REPLACEMENT = r'''            const buildPopup = selected => {
                 center: popupCenter,
                 html: `<div class="popup-title">${escapeHtml(p.operator_id)} · ${escapeHtml(p.site_id)}</div><div class="popup-row"><strong>Locality:</strong> ${escapeHtml(p.metro_locality || 'Not specified')}</div>${centerRow}<div class="popup-row"><strong>${addressLabel}:</strong> <span id="${addressId}">Looking up…</span></div>${p.coordination_contact ? `<div class="popup-contact"><strong>Coordination contact:</strong><br>${escapeHtml(p.coordination_contact)}</div>` : ''}`
               };
+            };
+
+            // The geometry/popup patcher installs a popup-open hook that calls this
+            // helper. Keep the lookup tied to the popup's actual center so polygons,
+            // circles, and MultiCircles all use the same reverse-geocoding path.
+            const reverseGeocodeForPopup = async popupInfo => {
+              const element = document.getElementById(popupInfo?.addressId);
+              const center = popupInfo?.center;
+              if (!element || !center) return;
+              const lat = Number(center.latitude);
+              const lng = Number(center.longitude);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                element.textContent = 'Address not available';
+                return;
+              }
+              try {
+                element.textContent = await reverseGeocode(lat, lng);
+              } catch (error) {
+                console.error('Reverse geocoding failed:', error);
+                element.textContent = 'Address not available';
+              }
             };
 '''
 
@@ -67,7 +85,7 @@ def main() -> None:
     text = text[:start] + REPLACEMENT + text[end:]
     text = text.replace("</head>", f"  {MARKER}\n</head>", 1)
     path.write_text(text, encoding="utf-8")
-    print("Applied minimal operational-area popup.")
+    print("Applied minimal operational-area popup with shared reverse geocoder.")
 
 
 if __name__ == "__main__":
