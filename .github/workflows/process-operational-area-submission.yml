@@ -12,19 +12,11 @@ permissions:
 
 jobs:
   process-submission:
+    # The Operational Area Issue Template is the single entry point.
+    # The dispatcher decides whether the payload is Polygon, Circle, or MultiCircle.
     if: >-
       github.event.issue.state == 'open' &&
-      (
-        (
-          contains(github.event.issue.body, '### Operator ID') &&
-          (
-            contains(github.event.issue.body, '### Operational Area Geometry') ||
-            contains(github.event.issue.body, '### Operational Area Definition (optional)')
-          ) &&
-          contains(github.event.issue.body, '<!-- OPERATIONAL-AREA-SUBMISSION -->')
-        ) ||
-        contains(github.event.issue.body, '"submission_type": "operational_area"')
-      )
+      contains(github.event.issue.body, '<!-- OPERATIONAL-AREA-SUBMISSION -->')
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
