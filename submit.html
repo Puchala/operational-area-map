@@ -14,7 +14,7 @@
       const bytes = new TextEncoder().encode(value);
       let binary = '';
       for (const byte of bytes) binary += String.fromCharCode(byte);
-      return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
 
     fetch(SOURCE, { cache: 'no-store' })
@@ -23,7 +23,9 @@
         return response.text();
       })
       .then(html => {
-        const oldBuild = /  function buildSubmissionText\\(\\) \\{[\\s\\S]*?\\n  \\}\\n  function updateSubmissionButtons/;
+        const buildStart = html.indexOf('  function buildSubmissionText() {');
+        const buttonsStart = html.indexOf('  function updateSubmissionButtons', buildStart);
+        if (buildStart < 0 || buttonsStart < 0) throw new Error('Submission builder block was not found.');
         const newBuild = `  function getSubmissionPayload() {
     if (!getCircleLayers().length && !getSelectedNonCircleLayer()) return null;
     const payload = {
@@ -66,11 +68,12 @@
     if (!payload) return '';
     return '<!-- OPERATIONAL-AREA-SUBMISSION -->\\n\\n<!-- OAM2:' + toBase64Url(JSON.stringify(payload)) + ' -->';
   }
-  function updateSubmissionButtons`;
-        if (!oldBuild.test(html)) throw new Error('Submission builder block was not found.');
-        html = html.replace(oldBuild, newBuild);
+`;
+        html = html.slice(0, buildStart) + newBuild + html.slice(buttonsStart);
 
-        const oldHandler = /  createGithubSubmission\\.addEventListener\\('click', \(\) => \\{[\\s\\S]*?\\n  \\}\\);/;
+        const handlerStart = html.indexOf("  createGithubSubmission.addEventListener('click'");
+        const refreshStart = html.indexOf('\n  refresh();', handlerStart);
+        if (handlerStart < 0 || refreshStart < 0) throw new Error('GitHub submission handler was not found.');
         const newHandler = `  createGithubSubmission.addEventListener('click', () => {
     try {
       const repoUrl = getGitHubRepositoryUrl();
@@ -83,8 +86,7 @@
       submissionStatus.textContent = error.message;
     }
   });`;
-        if (!oldHandler.test(html)) throw new Error('GitHub submission handler was not found.');
-        html = html.replace(oldHandler, newHandler);
+        html = html.slice(0, handlerStart) + newHandler + html.slice(refreshStart);
 
         document.open();
         document.write(html);
