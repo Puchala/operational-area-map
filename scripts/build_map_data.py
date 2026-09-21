@@ -7,7 +7,7 @@ import json
 import math
 from pathlib import Path
 
-from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, shape
+from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, mapping, shape
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,13 +59,7 @@ def definition_circle_geometries(definition):
 
 
 def canonical_geometry(data):
-    """Build published geometry from the authoritative operational-area definition.
-
-    This prevents stale/generated geometry from disagreeing with the exact Circle or
-    MultiCircle definition stored in properties. For multiple circles, union the
-    component geometries so the published GeoJSON remains a valid area geometry even
-    when circles overlap or one contains another.
-    """
+    """Build published geometry from the authoritative operational-area definition."""
     definition = data.get("properties", {}).get("operational_area_definition") or {}
     definition_type = definition.get("type")
 
@@ -129,7 +123,7 @@ features = []
 
 for i, (path, data, geom) in enumerate(items):
     feature = copy.deepcopy(data)
-    feature["geometry"] = json.loads(json.dumps(shape_to_geojson(geom))) if False else feature.get("geometry")
+    feature["geometry"] = mapping(geom)
     props = feature.setdefault("properties", {})
     overlaps = []
     overlap_details = []
