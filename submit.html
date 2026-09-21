@@ -8,7 +8,9 @@
 <body>
   <p style="font-family:system-ui;padding:24px">Loading Operational Area Submission Tool…</p>
   <script>
-    const SOURCE = 'https://raw.githubusercontent.com/Puchala/operational-area-map/aa644105a040aaaff2c8bc11e6fc7ff39c6b3229/submit.html';
+    // Pin the known-good full submission tool to a real Git commit. The previous
+    // value was a blob SHA, which raw.githubusercontent.com cannot serve as a ref.
+    const SOURCE = 'https://raw.githubusercontent.com/Puchala/operational-area-map/1c9051c49eec9511dc488262b3c7ad6d1463c8da/submit.html';
 
     function toBase64Url(value) {
       const bytes = new TextEncoder().encode(value);
@@ -23,9 +25,7 @@
         return response.text();
       })
       .then(html => {
-        const buildStart = html.indexOf('  function buildSubmissionText() {');
-        const buttonsStart = html.indexOf('  function updateSubmissionButtons', buildStart);
-        if (buildStart < 0 || buttonsStart < 0) throw new Error('Submission builder block was not found.');
+        const oldBuild = /  function buildSubmissionText\(\) \{[\s\S]*?\n  \}\n  function updateSubmissionButtons/;
         const newBuild = `  function getSubmissionPayload() {
     if (!getCircleLayers().length && !getSelectedNonCircleLayer()) return null;
     const payload = {
@@ -68,12 +68,11 @@
     if (!payload) return '';
     return '<!-- OPERATIONAL-AREA-SUBMISSION -->\\n\\n<!-- OAM2:' + toBase64Url(JSON.stringify(payload)) + ' -->';
   }
-`;
-        html = html.slice(0, buildStart) + newBuild + html.slice(buttonsStart);
+  function updateSubmissionButtons`;
+        if (!oldBuild.test(html)) throw new Error('Submission builder block was not found.');
+        html = html.replace(oldBuild, newBuild);
 
-        const handlerStart = html.indexOf("  createGithubSubmission.addEventListener('click'");
-        const refreshStart = html.indexOf('\n  refresh();', handlerStart);
-        if (handlerStart < 0 || refreshStart < 0) throw new Error('GitHub submission handler was not found.');
+        const oldHandler = /  createGithubSubmission\.addEventListener\('click', \(\) => \{[\s\S]*?\n  \}\);/;
         const newHandler = `  createGithubSubmission.addEventListener('click', () => {
     try {
       const repoUrl = getGitHubRepositoryUrl();
@@ -86,7 +85,8 @@
       submissionStatus.textContent = error.message;
     }
   });`;
-        html = html.slice(0, handlerStart) + newHandler + html.slice(refreshStart);
+        if (!oldHandler.test(html)) throw new Error('GitHub submission handler was not found.');
+        html = html.replace(oldHandler, newHandler);
 
         document.open();
         document.write(html);
