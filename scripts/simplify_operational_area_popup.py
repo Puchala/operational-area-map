@@ -20,6 +20,16 @@ REPLACEMENT = r'''            const buildPopup = selected => {
               if (!popupCenter && definition?.type === 'MultiCircle' && validCenters.length) {
                 popupCenter = validCenters[0].center;
               }
+              // Some published demo polygons do not carry an explicit center_point.
+              // Use the rendered feature bounds as the deterministic fallback so
+              // Center and address are still available for every operational area.
+              if (!popupCenter && layer?.getBounds) {
+                const bounds = layer.getBounds();
+                if (bounds && bounds.isValid()) {
+                  const center = bounds.getCenter();
+                  popupCenter = { latitude: center.lat, longitude: center.lng };
+                }
+              }
 
               const centerRow = popupCenter
                 ? `<div class="popup-row"><strong>Center:</strong> ${escapeHtml(Number(popupCenter.latitude).toFixed(6))}, ${escapeHtml(Number(popupCenter.longitude).toFixed(6))}</div>`
