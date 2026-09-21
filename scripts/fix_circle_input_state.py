@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-"""Fix circle-builder input state during the GitHub Pages build.
-
-After a circle is added, refresh() repopulates the input fields from the last
-existing circle. That makes a second click on Add Circle duplicate the previous
-circle when the user has not intentionally changed the fields. Clear the
-builder inputs after refresh so every additional circle requires explicit input.
-"""
+"""Patch the published submission page to prevent duplicate circles."""
 
 from pathlib import Path
+import re
 import sys
-
-OLD = "drawn.addLayer(circle); map.fitBounds(circle.getBounds(), { padding: [24, 24] }); refresh(); clearCircleInputs();"
-NEW = "drawn.addLayer(circle); map.fitBounds(circle.getBounds(), { padding: [24, 24] }); refresh(); clearCircleInputs();"
 
 
 def main() -> None:
@@ -19,20 +11,29 @@ def main() -> None:
         raise SystemExit("usage: fix_circle_input_state.py <html-file>")
     path = Path(sys.argv[1])
     html = path.read_text(encoding="utf-8")
-    if OLD not in html:
-        raise SystemExit("Expected circle creation statement was not found; refusing to modify the page.")
-    # The source currently clears before refresh. Move the clear after refresh.
-    old = "drawn.addLayer(circle); map.fitBounds(circle.getBounds(), { padding: [24, 24] }); refresh(); clearCircleInputs();"
-    new = "drawn.addLayer(circle); map.fitBounds(circle.getBounds(), { padding: [24, 24] }); refresh(); clearCircleInputs();"
-    # Apply a precise semantic replacement of the function statement if needed.
-    source = html
-    target = "drawn.addLayer(circle); map.fitBounds(circle.getBounds(), { padding: [24, 24] }); refresh(); clearCircleInputs();"
-    replacement = "drawn.addLayer(circle); map.fitBounds(circle.getBounds(), { padding: [24, 24] }); refresh(); clearCircleInputs();"
-    if target != replacement:
-        source = source.replace(target, replacement, 1)
-    # The intended behavior is already represented by the ordering above in
-    # this published source; keep this script as a guard for future builds.
-    path.write_text(source, encoding="utf-8")
+
+    pattern = r"  function createCircleFromValues\(\) \{.*?\n  \}\n  function renderCircleList\(\)"
+    replacement = '''  function createCircleFromValues() {
+    setCircleBuilderStatus('');
+    const lat = Number(circleLatitude.value), lng = Number(circleLongitude.value), radiusValue = Number(circleRadius.value);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) { setCircleBuilderStatus('Enter a valid latitude between -90 and 90.'); circleLatitude.focus(); return; }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) { setCircleBuilderStatus('Enter a valid longitude between -180 and 180.'); circleLongitude.focus(); return; }
+    if (!Number.isFinite(radiusValue) || radiusValue <= 0) { setCircleBuilderStatus('Enter a radius greater than 0.'); circleRadius.focus(); return; }
+    let radiusMeters = radiusValue; if (circleRadiusUnit.value === 'km') radiusMeters *= 1000; if (circleRadiusUnit.value === 'mi') radiusMeters *= 1609.344;
+    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0 || radiusMeters > 20000000) { setCircleBuilderStatus('Radius must be greater than 0 and no more than 20,000 km.'); circleRadius.focus(); return; }
+    const duplicate = getCircleLayers().some(layer => {
+      const c = layer.getLatLng();
+      return Math.abs(c.lat - lat) < 1e-7 && Math.abs(c.lng - lng) < 1e-7 && Math.abs(layer.getRadius() - radiusMeters) < 0.01;
+    });
+    if (duplicate) { setCircleBuilderStatus('This circle is already added. Enter a different center point or radius.'); return; }
+    const circle = L.circle([lat, lng], { radius: radiusMeters }); drawn.addLayer(circle); map.fitBounds(circle.getBounds(), { padding: [24, 24] }); refresh(); clearCircleInputs();
+  }
+  function renderCircleList()'''
+
+    patched, count = re.subn(pattern, replacement, html, count=1, flags=re.S)
+    if count != 1:
+        raise SystemExit("Expected createCircleFromValues function was not found; refusing to modify the page.")
+    path.write_text(patched, encoding="utf-8")
 
 
 if __name__ == "__main__":
