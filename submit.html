@@ -23,6 +23,7 @@
     button, a.button { border: 0; border-radius: 9px; padding: 11px 16px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 14px; }
     button.primary, a.button.primary { background: #0f172a; color: white; }
     button.secondary { background: #e2e8f0; color: #172033; }
+    button.danger { background: #fee2e2; color: #991b1b; }
     button:disabled { opacity: .45; cursor: not-allowed; }
     input, select { font: inherit; }
     textarea { width: 100%; min-height: 180px; box-sizing: border-box; margin-top: 12px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 9px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -37,18 +38,22 @@
     .circle-builder label { display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }
     .circle-builder input, .circle-builder select { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; }
     .circle-builder .actions { margin-top: 12px; }
+    .circle-list { display: grid; gap: 8px; margin-top: 12px; }
+    .circle-item { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; background: white; border: 1px solid #dbe2ea; border-radius: 8px; }
+    .circle-item strong { display: block; font-size: 13px; margin-bottom: 2px; }
+    .circle-item span { color: #64748b; font-size: 12px; }
     .circle-builder-status { display: none; margin-top: 10px; border-left: 4px solid #dc2626; background: #fef2f2; color: #991b1b; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
-    @media (max-width: 720px) { .steps, .meta, .circle-builder-grid { grid-template-columns: 1fr; } main { padding: 14px; } #map { height: 460px; } }
+    @media (max-width: 720px) { .steps, .meta, .circle-builder-grid { grid-template-columns: 1fr; } main { padding: 14px; } #map { height: 460px; } .circle-item { grid-template-columns: 1fr; } }
   </style>
-  <!-- submission-flow-version: 2026-09-21.1 -->
+  <!-- submission-flow-version: 2026-09-21.2 -->
 </head>
 <body>
 <header><div class="wrap"><h1>Operational Area Submission</h1><p>Define the minimum geographic area needed for overlap awareness, then submit it through the GitHub review workflow.</p></div></header>
 <main>
   <section class="card">
     <div class="steps">
-      <div class="step"><strong>1. Define</strong>Draw a polygon, rectangle, or circle, or create a circle from an exact center point and radius.</div>
-      <div class="step"><strong>2. Review</strong>Check the shape, center point, radius, and geographic bounds before submitting.</div>
+      <div class="step"><strong>1. Define</strong>Draw a polygon, rectangle, or circle, or create one or more circles from exact center points and radii.</div>
+      <div class="step"><strong>2. Review</strong>Check every shape, center point, radius, and geographic bounds before submitting.</div>
       <div class="step"><strong>3. Submit</strong>Complete the submission details, then create a prefilled GitHub request for review.</div>
     </div>
   </section>
@@ -58,15 +63,16 @@
 
     <div class="circle-builder" aria-labelledby="circleBuilderTitle">
       <h3 id="circleBuilderTitle">Create Circle by Center Point &amp; Radius</h3>
-      <p>Enter the exact center coordinates and radius, then create the circle on the map. You can also use the map's circle tool and edit the result directly.</p>
+      <p>Add one or more exact circular service areas. Each circle remains independently defined by its center point and radius.</p>
       <div class="circle-builder-grid">
         <div><label for="circleLatitude">Center Latitude</label><input id="circleLatitude" type="number" step="any" min="-90" max="90" placeholder="37.3382" inputmode="decimal"></div>
         <div><label for="circleLongitude">Center Longitude</label><input id="circleLongitude" type="number" step="any" min="-180" max="180" placeholder="-121.8863" inputmode="decimal"></div>
         <div><label for="circleRadius">Radius</label><input id="circleRadius" type="number" step="any" min="0" placeholder="5" inputmode="decimal"></div>
         <div><label for="circleRadiusUnit">Radius Unit</label><select id="circleRadiusUnit"><option value="mi" selected>Miles (mi)</option><option value="km">Kilometers (km)</option><option value="m">Meters (m)</option></select></div>
       </div>
-      <div class="actions"><button id="createCircleFromInputs" class="primary" type="button">Create Circle</button></div>
+      <div class="actions"><button id="createCircleFromInputs" class="primary" type="button">Add Circle</button></div>
       <div id="circleBuilderStatus" class="circle-builder-status" role="alert" aria-live="polite"></div>
+      <div id="circleList" class="circle-list" aria-live="polite"></div>
     </div>
 
     <div class="actions">
@@ -81,7 +87,7 @@
     </div>
     <textarea id="output" readonly aria-label="Generated GeoJSON geometry" placeholder="Your generated Polygon or MultiPolygon geometry will appear here."></textarea>
     <p style="color:#64748b;font-size:13px;margin-bottom:0;">Complete the submission details below, then click <strong>Open GitHub Submission</strong>. GitHub will open a new Issue with the submission details already populated.</p>
-    <p class="circle-note" style="color:#64748b;font-size:13px;margin-bottom:0;">For a circle, the <strong>center point and radius</strong> are preserved as the operational-area definition. A GeoJSON polygon approximation is generated for interoperability and overlap analysis.</p>
+    <p class="circle-note" style="color:#64748b;font-size:13px;margin-bottom:0;">For circles, the <strong>center points and radii</strong> are preserved as the operational-area definition. GeoJSON Polygon/MultiPolygon approximations are generated only for interoperability and overlap analysis.</p>
   </section>
 
   <section class="card" id="submission">
@@ -91,7 +97,7 @@
       <div class="field"><span>Operator ID *</span><input id="operatorId" required placeholder="e.g. OPERATOR-001" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
       <div class="field"><span>Site / Area ID *</span><input id="siteId" required placeholder="e.g. SJC-NORTH-01" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
       <div class="field" style="grid-column:1/-1;"><span>Metro / Locality *</span><input id="metroLocality" required placeholder="e.g. San Jose, CA" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
-      <div class="field"><span>Center Point</span><input id="centerPoint" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;"></div>
+      <div class="field"><span>Center Point(s)</span><input id="centerPoint" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;"></div>
       <div class="field"><span>Geographic Bounds</span><input id="geographicBounds" readonly style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;"></div>
       <div class="field"><span>Coordination Contact Name</span><input id="contactName" placeholder="Optional" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
       <div class="field"><span>Coordination Contact Email</span><input id="contactEmail" type="email" placeholder="ops@example.com" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></div>
@@ -118,10 +124,7 @@
   const map = L.map('map').setView([37.35, -121.91], 11);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
   const drawn = new L.FeatureGroup().addTo(map);
-  map.addControl(new L.Control.Draw({
-    edit: { featureGroup: drawn },
-    draw: { polygon: true, rectangle: true, circle: true, polyline: false, circlemarker: false, marker: false }
-  }));
+  map.addControl(new L.Control.Draw({ edit: { featureGroup: drawn }, draw: { polygon: true, rectangle: true, circle: true, polyline: false, circlemarker: false, marker: false } }));
 
   const output = document.getElementById('output');
   const copy = document.getElementById('copy');
@@ -135,17 +138,50 @@
   const circleRadiusUnit = document.getElementById('circleRadiusUnit');
   const createCircleFromInputs = document.getElementById('createCircleFromInputs');
   const circleBuilderStatus = document.getElementById('circleBuilderStatus');
-  let circleDefinition = null;
+  const circleList = document.getElementById('circleList');
   const centerPointInput = document.getElementById('centerPoint');
   const boundsInput = document.getElementById('geographicBounds');
   const submissionGeometry = document.getElementById('submissionGeometry');
   const createGithubSubmission = document.getElementById('createGithubSubmission');
   const copySubmissionText = document.getElementById('copySubmissionText');
   const submissionStatus = document.getElementById('submissionStatus');
+  let circleDefinition = null;
 
   function setCircleBuilderStatus(message) {
     circleBuilderStatus.textContent = message || '';
     circleBuilderStatus.style.display = message ? 'block' : 'none';
+  }
+
+  function trim(value, decimals = 7) { return Number(value.toFixed(decimals)).toString(); }
+  function trimNumber(value, decimals) { return Number(value.toFixed(decimals)).toString(); }
+  function formatRadius(radiusMeters) { return (radiusMeters / 1609.344).toFixed(2) + ' mi (' + (radiusMeters / 1000).toFixed(2) + ' km)'; }
+
+  function circleToPolygon(centerLat, centerLng, radiusMeters, segments = 64) {
+    const earthRadius = 6371008.8;
+    const angularDistance = radiusMeters / earthRadius;
+    const lat1 = centerLat * Math.PI / 180;
+    const lon1 = centerLng * Math.PI / 180;
+    const coordinates = [];
+    for (let i = 0; i <= segments; i++) {
+      const bearing = (i / segments) * 2 * Math.PI;
+      const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angularDistance) + Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing));
+      const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1), Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2));
+      coordinates.push([lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]);
+    }
+    return { type: 'Polygon', coordinates: [coordinates] };
+  }
+
+  function getCircleLayers() {
+    const layers = [];
+    drawn.eachLayer(layer => { if (layer instanceof L.Circle) layers.push(layer); });
+    return layers;
+  }
+
+  function clearCircleInputs() {
+    circleLatitude.value = '';
+    circleLongitude.value = '';
+    circleRadius.value = '';
+    circleRadiusUnit.value = 'mi';
   }
 
   function updateCircleInputsFromLayer(layer) {
@@ -157,197 +193,132 @@
     circleRadius.value = trimNumber(layer.getRadius() / 1609.344, 3);
   }
 
-  function trimNumber(value, decimals) {
-    return Number(value.toFixed(decimals)).toString();
-  }
-
   function createCircleFromValues() {
     setCircleBuilderStatus('');
-
     const lat = Number(circleLatitude.value);
     const lng = Number(circleLongitude.value);
     const radiusValue = Number(circleRadius.value);
-
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-      setCircleBuilderStatus('Enter a valid latitude between -90 and 90.');
-      circleLatitude.focus();
-      return;
-    }
-    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
-      setCircleBuilderStatus('Enter a valid longitude between -180 and 180.');
-      circleLongitude.focus();
-      return;
-    }
-    if (!Number.isFinite(radiusValue) || radiusValue <= 0) {
-      setCircleBuilderStatus('Enter a radius greater than 0.');
-      circleRadius.focus();
-      return;
-    }
-
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) { setCircleBuilderStatus('Enter a valid latitude between -90 and 90.'); circleLatitude.focus(); return; }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) { setCircleBuilderStatus('Enter a valid longitude between -180 and 180.'); circleLongitude.focus(); return; }
+    if (!Number.isFinite(radiusValue) || radiusValue <= 0) { setCircleBuilderStatus('Enter a radius greater than 0.'); circleRadius.focus(); return; }
     let radiusMeters = radiusValue;
     if (circleRadiusUnit.value === 'km') radiusMeters *= 1000;
     if (circleRadiusUnit.value === 'mi') radiusMeters *= 1609.344;
-
-    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
-      setCircleBuilderStatus('Enter a valid radius greater than 0.');
-      circleRadius.focus();
-      return;
-    }
-
+    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0 || radiusMeters > 20000000) { setCircleBuilderStatus('Radius must be greater than 0 and no more than 20,000 km.'); circleRadius.focus(); return; }
     const circle = L.circle([lat, lng], { radius: radiusMeters });
-    drawn.clearLayers();
     drawn.addLayer(circle);
     map.fitBounds(circle.getBounds(), { padding: [24, 24] });
     refresh();
-    setCircleBuilderStatus('');
+    circleLatitude.value = '';
+    circleLongitude.value = '';
+    circleRadius.value = '';
+    circleRadiusUnit.value = 'mi';
   }
 
-  createCircleFromInputs.addEventListener('click', createCircleFromValues);
-
-  function circleToPolygon(centerLat, centerLng, radiusMeters, segments = 64) {
-    const earthRadius = 6371008.8;
-    const angularDistance = radiusMeters / earthRadius;
-    const lat1 = centerLat * Math.PI / 180;
-    const lon1 = centerLng * Math.PI / 180;
-    const coordinates = [];
-
-    for (let i = 0; i <= segments; i++) {
-      const bearing = (i / segments) * 2 * Math.PI;
-      const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angularDistance) + Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing));
-      const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1), Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2));
-      coordinates.push([lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]);
-    }
-
-    return { type: 'Polygon', coordinates: [coordinates] };
-  }
-
-  function trim(value, decimals = 7) { return Number(value.toFixed(decimals)).toString(); }
-
-  function formatRadius(radiusMeters) {
-    const miles = radiusMeters / 1609.344;
-    const kilometers = radiusMeters / 1000;
-    return miles.toFixed(2) + ' mi (' + kilometers.toFixed(2) + ' km)';
+  function renderCircleList() {
+    circleList.innerHTML = '';
+    const layers = getCircleLayers();
+    layers.forEach((layer, index) => {
+      const c = layer.getLatLng();
+      const item = document.createElement('div');
+      item.className = 'circle-item';
+      const info = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = 'Circle ' + (index + 1);
+      const detail = document.createElement('span');
+      detail.textContent = trim(c.lat) + ', ' + trim(c.lng) + ' • ' + formatRadius(layer.getRadius());
+      info.appendChild(title); info.appendChild(detail);
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.className = 'danger'; remove.textContent = 'Remove';
+      remove.addEventListener('click', () => { drawn.removeLayer(layer); refresh(); });
+      item.appendChild(info); item.appendChild(remove); circleList.appendChild(item);
+    });
   }
 
   function getGitHubRepositoryUrl() {
     const host = window.location.hostname;
     const pathParts = window.location.pathname.split('/').filter(Boolean);
-    if (host.endsWith('.github.io') && pathParts.length >= 1) {
-      const owner = host.split('.')[0];
-      const repo = pathParts[0];
-      return `https://github.com/${owner}/${repo}`;
-    }
+    if (host.endsWith('.github.io') && pathParts.length >= 1) return `https://github.com/${host.split('.')[0]}/${pathParts[0]}`;
     throw new Error('This page must be hosted from the GitHub Pages repository to generate a GitHub submission link.');
   }
 
-  function getSelectedLayer() {
+  function getSelectedNonCircleLayer() {
     let layer = null;
-    drawn.eachLayer(candidate => { layer = candidate; });
+    drawn.eachLayer(candidate => { if (!(candidate instanceof L.Circle)) layer = candidate; });
     return layer;
   }
 
   function refresh() {
-    const layer = getSelectedLayer();
-    if (!layer) {
-      output.value = '';
-      submissionGeometry.value = '';
-      center.textContent = 'Draw an area to calculate';
-      bounds.textContent = 'Draw an area to calculate';
-      radius.textContent = 'Only applicable to circles';
-      centerPointInput.value = '';
-      boundsInput.value = '';
-      circleDefinition = null;
+    const circles = getCircleLayers();
+    const nonCircle = getSelectedNonCircleLayer();
+    renderCircleList();
+
+    if (circles.length > 0 && nonCircle) {
+      drawn.removeLayer(nonCircle);
+      return refresh();
+    }
+
+    if (circles.length > 0) {
+      const definitions = circles.map(layer => {
+        const c = layer.getLatLng();
+        return { type: 'Circle', center_point: { latitude: Number(c.lat.toFixed(7)), longitude: Number(c.lng.toFixed(7)) }, radius_meters: Number(layer.getRadius().toFixed(2)) };
+      });
+      circleDefinition = definitions.length === 1 ? definitions[0] : { type: 'MultiCircle', circles: definitions };
+      const polygons = circles.map(layer => { const c = layer.getLatLng(); return circleToPolygon(c.lat, c.lng, layer.getRadius()).coordinates; });
+      const geometry = polygons.length === 1 ? { type: 'Polygon', coordinates: polygons[0] } : { type: 'MultiPolygon', coordinates: polygons };
+      output.value = JSON.stringify(geometry, null, 2);
+      submissionGeometry.value = output.value;
+      const centerValues = circles.map(layer => { const c = layer.getLatLng(); return trim(c.lat) + ', ' + trim(c.lng); });
+      center.textContent = centerValues.join(' | ');
+      centerPointInput.value = center.textContent;
+      radius.textContent = circles.map((layer, i) => 'Circle ' + (i + 1) + ': ' + formatRadius(layer.getRadius())).join(' | ');
+      const combined = L.featureGroup(circles);
+      const b = combined.getBounds();
+      bounds.textContent = trim(b.getSouth()) + ', ' + trim(b.getWest()) + ' to ' + trim(b.getNorth()) + ', ' + trim(b.getEast());
+      boundsInput.value = bounds.textContent;
+      updateCircleInputsFromLayer(circles[circles.length - 1]);
       updateSubmissionButtons();
       return;
     }
 
-    const geojson = layer.toGeoJSON();
-    let geometry = geojson.geometry;
-
-    if (layer instanceof L.Circle) {
-      const c = layer.getLatLng();
-      const radiusMeters = layer.getRadius();
-      circleDefinition = {
-        type: 'Circle',
-        center_point: {
-          latitude: Number(c.lat.toFixed(7)),
-          longitude: Number(c.lng.toFixed(7))
-        },
-        radius_meters: Number(radiusMeters.toFixed(2))
-      };
-      updateCircleInputsFromLayer(layer);
-      geometry = circleToPolygon(c.lat, c.lng, radiusMeters);
-      center.textContent = trim(c.lat) + ', ' + trim(c.lng);
-      radius.textContent = formatRadius(radiusMeters);
-    } else {
-      circleDefinition = null;
-      circleLatitude.value = '';
-      circleLongitude.value = '';
-      circleRadius.value = '';
-      circleRadiusUnit.value = 'mi';
-      if (layer.getBounds) {
-        const b = layer.getBounds();
-        const c = b.getCenter();
-        center.textContent = trim(c.lat) + ', ' + trim(c.lng);
-      }
-      radius.textContent = 'Only applicable to circles';
+    clearCircleInputs();
+    circleDefinition = null;
+    if (!nonCircle) {
+      output.value = ''; submissionGeometry.value = ''; center.textContent = 'Draw an area to calculate'; bounds.textContent = 'Draw an area to calculate'; radius.textContent = 'Only applicable to circles'; centerPointInput.value = ''; boundsInput.value = '';
+      updateSubmissionButtons(); return;
     }
 
-    output.value = JSON.stringify(geometry, null, 2);
+    const geojson = nonCircle.toGeoJSON();
+    output.value = JSON.stringify(geojson.geometry, null, 2);
     submissionGeometry.value = output.value;
-    const b = layer.getBounds ? layer.getBounds() : null;
-    if (b) {
-      bounds.textContent = trim(b.getSouth()) + ', ' + trim(b.getWest()) + ' to ' + trim(b.getNorth()) + ', ' + trim(b.getEast());
-      boundsInput.value = bounds.textContent;
+    if (nonCircle.getBounds) {
+      const b = nonCircle.getBounds(); const c = b.getCenter();
+      center.textContent = trim(c.lat) + ', ' + trim(c.lng); centerPointInput.value = center.textContent;
+      bounds.textContent = trim(b.getSouth()) + ', ' + trim(b.getWest()) + ' to ' + trim(b.getNorth()) + ', ' + trim(b.getEast()); boundsInput.value = bounds.textContent;
     }
-    centerPointInput.value = center.textContent;
+    radius.textContent = 'Only applicable to circles';
     updateSubmissionButtons();
   }
 
+  createCircleFromInputs.addEventListener('click', createCircleFromValues);
   map.on(L.Draw.Event.CREATED, e => {
-    drawn.clearLayers();
-    drawn.addLayer(e.layer);
+    if (e.layer instanceof L.Circle) drawn.addLayer(e.layer);
+    else { drawn.clearLayers(); drawn.addLayer(e.layer); }
     refresh();
   });
   map.on(L.Draw.Event.EDITED, refresh);
   map.on(L.Draw.Event.DELETED, refresh);
 
-  copy.addEventListener('click', async () => {
-    if (!output.value) return;
-    await navigator.clipboard.writeText(output.value);
-    copy.textContent = 'Copied';
-    setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1200);
-  });
-
-  download.addEventListener('click', () => {
-    if (!output.value) return;
-    const blob = new Blob([output.value], { type: 'application/geo+json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'operational-area-geometry.geojson';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
+  copy.addEventListener('click', async () => { if (!output.value) return; await navigator.clipboard.writeText(output.value); copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy GeoJSON Geometry', 1200); });
+  download.addEventListener('click', () => { if (!output.value) return; const blob = new Blob([output.value], { type: 'application/geo+json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'operational-area-geometry.geojson'; a.click(); URL.revokeObjectURL(url); });
 
   const submissionInputs = ['operatorId','siteId','metroLocality','contactName','contactEmail','contactPhone','effectiveFrom','effectiveTo','minimumInfo','authorized'];
-  submissionInputs.forEach(id => {
-    const el = document.getElementById(id);
-    el.addEventListener('input', updateSubmissionButtons);
-    el.addEventListener('change', updateSubmissionButtons);
-  });
-
-  const effectiveFrom = document.getElementById('effectiveFrom');
-  const effectiveTo = document.getElementById('effectiveTo');
-  effectiveFrom.addEventListener('change', () => {
-    effectiveTo.min = effectiveFrom.value || '';
-    if (effectiveTo.value && effectiveFrom.value && effectiveTo.value < effectiveFrom.value) effectiveTo.value = effectiveFrom.value;
-    updateSubmissionButtons();
-  });
+  submissionInputs.forEach(id => { const el = document.getElementById(id); el.addEventListener('input', updateSubmissionButtons); el.addEventListener('change', updateSubmissionButtons); });
+  const effectiveFrom = document.getElementById('effectiveFrom'); const effectiveTo = document.getElementById('effectiveTo');
+  effectiveFrom.addEventListener('change', () => { effectiveTo.min = effectiveFrom.value || ''; if (effectiveTo.value && effectiveFrom.value && effectiveTo.value < effectiveFrom.value) effectiveTo.value = effectiveFrom.value; updateSubmissionButtons(); });
 
   function buildSubmissionText() {
-    const layer = getSelectedLayer();
-    if (!layer) return '';
+    if (!getCircleLayers().length && !getSelectedNonCircleLayer()) return '';
     const payload = {
       submission_type: 'operational_area',
       operator_id: document.getElementById('operatorId').value.trim(),
@@ -355,53 +326,27 @@
       metro_locality: document.getElementById('metroLocality').value.trim(),
       center_point: centerPointInput.value,
       geographic_bounds: boundsInput.value,
-      coordination_contact: {
-        name: document.getElementById('contactName').value.trim(),
-        email: document.getElementById('contactEmail').value.trim(),
-        phone: document.getElementById('contactPhone').value.trim()
-      },
+      coordination_contact: { name: document.getElementById('contactName').value.trim(), email: document.getElementById('contactEmail').value.trim(), phone: document.getElementById('contactPhone').value.trim() },
       effective_from: effectiveFrom.value,
       effective_to: effectiveTo.value,
       operational_area_definition: circleDefinition,
       geometry: circleDefinition ? null : JSON.parse(submissionGeometry.value),
-      confirmations: {
-        minimum_information: document.getElementById('minimumInfo').checked,
-        authorized: document.getElementById('authorized').checked
-      }
+      confirmations: { minimum_information: document.getElementById('minimumInfo').checked, authorized: document.getElementById('authorized').checked }
     };
     return '```json\n' + JSON.stringify(payload, null, 2) + '\n```';
   }
 
   function updateSubmissionButtons() {
-    const hasGeometry = !!getSelectedLayer();
+    const hasGeometry = getCircleLayers().length > 0 || !!getSelectedNonCircleLayer();
     const required = ['operatorId','siteId','metroLocality'].every(id => document.getElementById(id).value.trim());
     const confirmations = document.getElementById('minimumInfo').checked && document.getElementById('authorized').checked;
     const validDates = !effectiveFrom.value || !effectiveTo.value || effectiveTo.value >= effectiveFrom.value;
     const ready = hasGeometry && required && confirmations && validDates;
-    createGithubSubmission.disabled = !ready;
-    copySubmissionText.disabled = !ready;
+    createGithubSubmission.disabled = !ready; copySubmissionText.disabled = !ready;
   }
 
-  copySubmissionText.addEventListener('click', async () => {
-    const text = buildSubmissionText();
-    if (!text) return;
-    await navigator.clipboard.writeText(text);
-    submissionStatus.style.display = 'block';
-    submissionStatus.textContent = 'Submission text copied to clipboard.';
-  });
-
-  createGithubSubmission.addEventListener('click', () => {
-    try {
-      const repoUrl = getGitHubRepositoryUrl();
-      const title = encodeURIComponent('Operational Area Submission: ' + document.getElementById('siteId').value.trim());
-      const body = encodeURIComponent(buildSubmissionText());
-      window.open(repoUrl + '/issues/new?title=' + title + '&body=' + body, '_blank', 'noopener');
-    } catch (error) {
-      submissionStatus.style.display = 'block';
-      submissionStatus.textContent = error.message;
-    }
-  });
-
+  copySubmissionText.addEventListener('click', async () => { const text = buildSubmissionText(); if (!text) return; await navigator.clipboard.writeText(text); submissionStatus.style.display = 'block'; submissionStatus.textContent = 'Submission text copied to clipboard.'; });
+  createGithubSubmission.addEventListener('click', () => { try { const repoUrl = getGitHubRepositoryUrl(); const title = encodeURIComponent('Operational Area Submission: ' + document.getElementById('siteId').value.trim()); const body = encodeURIComponent(buildSubmissionText()); window.open(repoUrl + '/issues/new?title=' + title + '&body=' + body, '_blank', 'noopener'); } catch (error) { submissionStatus.style.display = 'block'; submissionStatus.textContent = error.message; } });
   refresh();
 </script>
 </body>
