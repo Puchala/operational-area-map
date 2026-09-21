@@ -15,6 +15,7 @@ on:
       - "scripts/fix_github_submission_preview.py"
       - "scripts/fix_multicircle_popup_behavior.py"
       - "scripts/fix_geometry_overlap_ui.py"
+      - "scripts/fix_popup_overlap_wording.py"
       - ".github/workflows/build-map.yml"
   repository_dispatch:
     types: [operational-area-published]
@@ -61,6 +62,7 @@ jobs:
           python scripts/fix_github_submission_preview.py _site/submit.html
           python scripts/fix_multicircle_popup_behavior.py _site/index.html
           python scripts/fix_geometry_overlap_ui.py _site/index.html
+          python scripts/fix_popup_overlap_wording.py _site/index.html
           cp map/operational-areas.geojson _site/operational-areas.geojson
 
       - name: Validate submission page
@@ -78,8 +80,10 @@ jobs:
         run: |
           test -s _site/index.html
           grep -Fq "geometry-overlap-ui-fix: 2026-09-21" _site/index.html
+          grep -Fq "popup-overlap-wording-fix: 2026-09-21" _site/index.html
           grep -Fq "potential_overlap_components" _site/index.html
           grep -Fq "selectedPolygonIndex" _site/index.html
+          grep -Fq "Actual overlap:" _site/index.html
           echo "Map page validation passed."
 
       - name: Upload Pages artifact
