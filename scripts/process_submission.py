@@ -94,14 +94,16 @@ def canonicalize(payload):
     }
 
 
-def run_processor(processor, event, payload):
+def run_processor(processor, event, payload, marker=True):
     event_copy = dict(event)
     event_copy['issue'] = dict(event.get('issue') or {})
-    # The legacy processors intentionally parse the same OAM marker used by
-    # the public issue body. Re-embed the normalized payload instead of
-    # replacing it with raw JSON, which would make the processors fall back
-    # to the old Markdown-template parser.
-    event_copy['issue']['body'] = encode_payload(payload)
+    if marker:
+        # The legacy Polygon/Circle processor parses the OAM marker.
+        event_copy['issue']['body'] = encode_payload(payload)
+    else:
+        # The MultiCircle processor expects JSON directly. Keep the structured
+        # payload intact rather than wrapping it in an OAM marker it cannot parse.
+        event_copy['issue']['body'] = json.dumps(payload, separators=(",", ":"))
     with tempfile.NamedTemporaryFile('w', encoding='utf-8', suffix='.json', delete=False) as handle:
         json.dump(event_copy, handle)
         temp_event_path = handle.name
@@ -139,11 +141,11 @@ def main():
     if is_multicircle:
         processor = os.path.join(os.path.dirname(__file__), 'process_multicircle_operational_area_submission.py')
         print('Detected MultiCircle submission; using MultiCircle processor.')
-        run_processor(processor, event, payload)
+        run_processor(processor, event, payload, marker=False)
 
     processor = os.path.join(os.path.dirname(__file__), 'process_operational_area_submission.py')
     print('Detected structured Polygon/Circle submission; using existing processor.')
-    run_processor(processor, event, canonicalize(payload))
+    run_processor(processor, event, canonicalize(payload), marker=True)
 
 
 if __name__ == '__main__':
