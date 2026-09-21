@@ -8,15 +8,15 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
-# Replace the build-time geocoder with a browser-safe, persistent, timeout-bounded
-# implementation. The source may contain either async or non-async reverseGeocode.
-pattern = re.compile(
-    r'''    const geocodeCache = new Map\(\);.*?\n    (?:async )?function reverseGeocode\(lat, lng\) \{.*?\n    \}\n''',
-    re.S,
-)
-match = pattern.search(text)
-if not match:
-    raise SystemExit("Could not locate reverse-geocoding implementation")
+# Replace the entire geocoding block using stable structural anchors. This is
+# intentionally independent of whether the source function is async or not,
+# because earlier UI patches may change that implementation detail.
+start_marker = "    const geocodeCache = new Map();"
+end_marker = "    fetch('operational-areas.geojson'"
+start = text.find(start_marker)
+end = text.find(end_marker, start + len(start_marker)) if start >= 0 else -1
+if start < 0 or end < 0:
+    raise SystemExit("Could not locate reverse-geocoding block")
 
 replacement = '''    const geocodeCache = new Map();
     const geocodeStorageKey = 'oam-reverse-geocode-v1';
@@ -92,8 +92,9 @@ replacement = '''    const geocodeCache = new Map();
       });
       return promise;
     }
+
 '''
-text = text[:match.start()] + replacement + text[match.end():]
+text = text[:start] + replacement + text[end:]
 
 marker = '<!-- address-lookup-hardening: 2026-09-21 -->'
 text = re.sub(r'\n\s*<!-- address-lookup-hardening: 2026-09-21 -->', '', text)
