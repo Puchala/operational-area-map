@@ -1,0 +1,45 @@
+{
+  "type": "Feature",
+  "properties": {
+    "operator_id": "Operator 6",
+    "site_id": "CA",
+    "metro_locality": "CA area",
+    "center_point": {
+      "latitude": 37.5255123,
+      "longitude": -121.1472702
+    },
+    "geographic_bounds": {
+      "south": 37.4917492,
+      "west": -121.1846924,
+      "north": 37.5592754,
+      "east": -121.109848
+    }
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -121.184692,
+          37.491749
+        ],
+        [
+          -121.184692,
+          37.559275
+        ],
+        [
+          -121.109848,
+          37.559275
+        ],
+        [
+          -121.109848,
+          37.491749
+        ],
+        [
+          -121.184692,
+          37.491749
+        ]
+      ]
+    ]
+  }
+}
