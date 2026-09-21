@@ -10,8 +10,10 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 marker = "<!-- multicircle-popup-fix: 2026-09-21 -->"
 if marker in text:
-    print("MultiCircle popup behavior already patched.")
-    raise SystemExit(0)
+    # Allow the patch script itself to evolve while preserving idempotency on a built page.
+    if "layer.eachLayer(childLayer =>" not in text:
+        print("MultiCircle popup behavior already patched.")
+        raise SystemExit(0)
 
 pattern = re.compile(
     r'''            const centerRow = center && typeof center\.latitude === 'number'.*?\n            const markerCenters = definition\?\.type === 'MultiCircle' ''',
@@ -97,18 +99,13 @@ replacement = '''            const validCenters = definition?.type === 'MultiCir
             layer.bindPopup(primaryPopup.html);
 
             if (definition?.type === 'MultiCircle' && validCenters.length) {
-              layer.eachLayer(childLayer => {
-                if (!childLayer || typeof childLayer.on !== 'function') return;
-                childLayer.on('click', event => {
-                  const selectedIndex = selectedCircleIndex(event.latlng);
-                  const popupInfo = buildPopup(selectedIndex);
-                  childLayer.bindPopup(popupInfo.html, { autoPan: true });
-                  childLayer.openPopup(event.latlng);
-                  setTimeout(() => reverseGeocodeForPopup(popupInfo), 0);
-                  if (event.originalEvent) event.originalEvent.stopPropagation();
-                });
+              layer.on('click', event => {
+                const selectedIndex = selectedCircleIndex(event.latlng);
+                const popupInfo = buildPopup(selectedIndex);
+                layer.bindPopup(popupInfo.html, { autoPan: true });
+                layer.openPopup(event.latlng);
+                setTimeout(() => reverseGeocodeForPopup(popupInfo), 0);
               });
-              layer.on('popupopen', () => reverseGeocodeForPopup(primaryPopup));
             } else {
               layer.on('popupopen', () => reverseGeocodeForPopup(primaryPopup));
             }
